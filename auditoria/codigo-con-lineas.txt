@@ -1,0 +1,3215 @@
+
+ARCHIVO: README.md
+SHA256: 23cea5d21486bf6c9f8a7408459d925eccf866266e8f56dffb144dc3be5c16d6
+    1: # BRIEFING TÉCNICO Y ESTADO DEL PROYECTO: APP BIBLIA IDMJI
+    2: 
+    3: ## 1. Identificación y Propósito del Proyecto
+    4: * **Nombre de la Aplicación:** Biblia IDMJI (Iglesia de Dios Ministerial de Jesucristo Internacional).
+    5: * **ID de Paquete Android:** `org.idmji.biblia`
+    6: * **Directorio Base del Código:** `/home/rocua/Proyectos/IDMJI/Biblia_Android`
+    7: * **Pipeline Backend y Compendio:** `/home/rocua/Proyectos/IDMJI/Compendio_Doctrinal_IDMJI`
+    8: * **Objetivo:** Aplicación nativa Android moderna, rápida y 100% Offline-First para la lectura de la Biblia Reina-Valera 1960 (RVR1960), integrada de forma exclusiva e interactiva con el **Compendio Doctrinal IDMJI** (enseñanzas, estudios bíblicos, meditaciones y preguntas de la Hermana María Luisa Piraquive vinculadas versículo por versículo con marcas de tiempo a YouTube).
+    9: 
+   10: ---
+   11: 
+   12: ## 2. Stack Tecnológico y Arquitectura
+   13: * **Plataforma:** Android Nativo.
+   14: * **Lenguaje:** Kotlin 2.3+ (JVM Toolchain 17).
+   15: * **Interfaz de Usuario (UI):** Jetpack Compose con Material 3 (`androidx.compose.material3`).
+   16: * **Patrón de Arquitectura:** MVVM (Model - View - ViewModel) con programación reactiva mediante `StateFlow` y Corrutinas de Kotlin en `Dispatchers.IO`.
+   17: * **Almacenamiento Local:** Base de datos relacional SQLite interna (`biblia_rvr1960.db`, versión 2), preempaquetada en `assets/` y copiada al almacenamiento interno del dispositivo con preservación automática de notas y marcadores de usuario.
+   18: * **Paradigma de Conectividad:** **Offline-First**. Toda la lectura de la Biblia, el diccionario, las referencias cruzadas y las transcripciones completas del compendio funcionan sin conexión a internet. Solo se requiere conexión para reproducir el video en YouTube o para la sincronización automática de nuevos estudios.
+   19: 
+   20: ---
+   21: 
+   22: ## 3. Módulos y Funcionalidades Principales
+   23: 
+   24: ### A. Lector Bíblico (RVR1960)
+   25: * Navegación completa por los 66 libros canónicos (Antiguo y Nuevo Testamento) con selector modal de libros y capítulos.
+   26: * **Ajustes de lectura personalizables (`ReadingSettingsSheet`):**
+   27:   - Selector de familias tipográficas (Sans Serif, Serif, Monospace).
+   28:   - Ajuste dinámico de tamaño de letra (slider de 12sp a 28sp).
+   29:   - Altura de línea ajustable.
+   30:   - Modos de visualización: Versículo por versículo o en Bloque/Párrafo corrido.
+   31:   - Soporte de temas Claro y Oscuro adaptativos.
+   32: 
+   33: ### B. Barra de Acciones de Versículo (`VerseActionsBar.kt`)
+   34: Al tocar un versículo, se despliega una barra contextual organizada en dos niveles:
+   35: * **Fila 1 (Herramientas de Estudio Personal):**
+   36:   - Paleta de 5 colores para subrayado permanente en SQLite (Amarillo, Verde, Azul, Rosa, Naranja).
+   37:   - Copiar versículo al portapapeles.
+   38:   - Compartir versículo en formato texto a otras apps.
+   39:   - Notas de estudio personales (crear, editar y guardar apuntes ligados al versículo).
+   40: * **Fila 2 (Herramientas Doctrinales y Exegéticas - Estrictamente separadas):**
+   41:   - `🔗 Referencias Cruzadas`: Sistema tradicional TSK (Treasury of Scripture Knowledge) y notas originales RVR1960 con navegación directa al versículo citado.
+   42:   - `📖 Diccionario Bíblico`: Definiciones etimológicas en hebreo y griego (concordancia Strong).
+   43:   - `🕊️ Compendio IDMJI`: Abre directamente las enseñanzas específicas de la Hna. María Luisa Piraquive correspondientes a ese versículo exacto.
+   44: 
+   45: ### C. Compendio Doctrinal IDMJI Versículo a Versículo (`CompendioDialog.kt`)
+   46: * **Distintivo Visual en la Lectura:** Los versículos que cuentan con doctrina asociada muestran un icono de palomita blanca `🕊️` interactivo.
+   47: * **Catálogo Doctrinal General:** Accesible en cualquier momento desde la barra superior de la app, dividido en dos pestañas:
+   48:   1. *Por Pasajes Bíblicos (5,141 intervenciones canónicas):* Desglose por libros canónicos y versículos exactos.
+   49:   2. *Por Temas y Preguntas (3,115 intervenciones temáticas):* Preguntas y respuestas, meditaciones y transmisiones sin cita explícita.
+   50:   3. *Buscador Doctrinal Global:* Búsqueda en tiempo real por título, cita o palabra clave con límite seguro para evitar sobrecarga de memoria.
+   51: * **Visor Detallado de Estudio (`CompendioDetailDialog`):**
+   52:   - Transcripción literal y completa del segmento de la enseñanza.
+   53:   - **Marcas de tiempo interactivas (`▶ mm:ss` y `▶ hh:mm:ss`):** Chips clicables que abren la aplicación de YouTube en el segundo exacto de la respuesta.
+   54:   - Controles de zoom tipográfico (`A-` / `A+`) para facilitar la lectura sin cansar la vista.
+   55:   - Botón "Saltar al Pasaje Bíblico" para posicionar el lector en el texto bíblico analizado.
+   56: 
+   57: ---
+   58: 
+   59: ## 4. Pipeline Backend y Modelo de Datos
+   60: 
+   61: ### Estructura de la Tabla SQLite `compendio_idmji`:
+   62: ```sql
+   63: CREATE TABLE compendio_idmji (
+   64:     id INTEGER PRIMARY KEY AUTOINCREMENT,
+   65:     tipo TEXT NOT NULL,                -- 'CANONICO' o 'TEMATICO'
+   66:     libro_id INTEGER,                  -- ID del libro bíblico (1 a 66) o NULL si es temático
+   67:     capitulo INTEGER,                  -- Capítulo bíblico o NULL
+   68:     versiculo_inicio INTEGER,          -- Versículo inicial o NULL
+   69:     versiculo_fin INTEGER,             -- Versículo final o NULL
+   70:     cita TEXT,                         -- Ejemplo: 'Génesis 1:26', 'Mateo 9:22'
+   71:     titulo TEXT NOT NULL,              -- Título del estudio o pregunta
+   72:     video_url TEXT NOT NULL,           -- URL de YouTube con timestamp base
+   73:     video_id TEXT NOT NULL,            -- Identificador de YouTube (ej. X3IFaTH0huk)
+   74:     seccion TEXT NOT NULL,             -- Lista de origen (estudios_biblicos, meditaciones, preguntas_y_respuestas, transmisiones_en_vivo)
+   75:     transcripcion TEXT NOT NULL        -- Transcripción completa con tags [[mm:ss]](url)
+   76: );
+   77: CREATE INDEX idx_compendio_verse ON compendio_idmji(libro_id, capitulo, versiculo_inicio, versiculo_fin);
+   78: CREATE INDEX idx_compendio_tipo ON compendio_idmji(tipo);
+   79: CREATE INDEX idx_compendio_libro ON compendio_idmji(libro_id);
+   80: ```
+   81: 
+   82: ### Scripts de Extracción y Actualización en Python:
+   83: * `actualizar_compendio_diario.py`: Monitorea las 4 listas oficiales de YouTube de la IDMJI, descarga subtítulos palabra por palabra (con estrategia híbrida Invidious + Tor SOCKS5 fallback ante límites de cuota) y detecta videos nuevos.
+   84: * `actualizar_db_android.py`: Segmenta, identifica citas bíblicas mediante expresiones regulares y actualiza la base de datos `biblia_rvr1960.db` empaquetada en la app.
+   85: 
+   86: ---
+   87: 
+   88: ## 5. Optimizaciones Críticas Implementadas
+   89: 
+   90: 1. **Prevención de SQLite CursorWindow Overflow y ANR:**
+   91:    - La base de datos contiene más de 80 MB de texto en transcripciones.
+   92:    - Las consultas de listados y pestañas solo recuperan metadatos (`'' as transcripcion`); la transcripción completa se carga bajo demanda mediante `getCompendioItemDetail(id)` en milisegundos cuando el usuario abre el visor.
+   93:    - Consultas temáticas con límite (`LIMIT 200`) y ejecución obligatoria en hilos de fondo (`Dispatchers.IO`).
+   94:    - Se configuró `android:largeHeap="true"` en `AndroidManifest.xml` para garantizar headroom de memoria en dispositivos con recursos ajustados.
+   95: 
+   96: 2. **Independencia de Fuentes:**
+   97:    - Las Referencias Cruzadas tradicionales y el Diccionario Bíblico son 100% independientes del Compendio IDMJI para preservar el rigor exegético y la claridad de la interfaz.
+   98: 
+   99: 3. **Soporte de Tiempos Extendidos:**
+  100:    - Expresión regular adaptativa para soportar tanto formato `MM:SS` como `HH:MM:SS` (ej. `01:07:36`).
+  101: 
+  102: ---
+  103: 
+  104: ## 6. Siguiente Paso / Trabajo en Curso: Sincronización Automática Remota
+  105: * **Reto:** Se publican nuevos videos y estudios bíblicos semanalmente. No se debe obligar al usuario a reinstalar la app ni a esperar aprobaciones de la Google Play Store para recibir las nuevas enseñanzas.
+  106: * **Solución en Desarrollo:**
+  107:   - **Backend (Nube):** Un cron o GitHub Action gratuito genera periódicamente un archivo liviano `version_compendio.json` y un delta de novedades (`compendio_novedades.json`, ~30 KB) alojado en GitHub Pages o CDN estática.
+  108:   - **Cliente (Android):** Implementación de un WorkManager (`CompendioSyncWorker`) en segundo plano que consulta periódicamente (con Wi-Fi) el delta y hace `INSERT OR IGNORE` en la tabla local `compendio_idmji`.
+  109:   - **Acción Manual:** Botón `🔄 Sincronizar enseñanzas` en la barra de la app para actualización instantánea a voluntad del usuario.
+
+ARCHIVO: app/src/main/AndroidManifest.xml
+SHA256: 4460303be31b7f4098cc375f41698441583bf332e96f702e10af8a1ab69ac9af
+    1: <?xml version="1.0" encoding="utf-8"?>
+    2: <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    3: 
+    4:     <application
+    5:         android:allowBackup="true"
+    6:         android:largeHeap="true"
+    7:         android:icon="@mipmap/ic_launcher"
+    8:         android:label="@string/app_name"
+    9:         android:roundIcon="@mipmap/ic_launcher_round"
+   10:         android:supportsRtl="true"
+   11:         android:windowSoftInputMode="adjustResize"
+   12:         android:theme="@style/Theme.BibliaIDMJI">
+   13:         <activity
+   14:             android:name=".MainActivity"
+   15:             android:exported="true">
+   16:             <intent-filter>
+   17:                 <action android:name="android.intent.action.MAIN" />
+   18:                 <category android:name="android.intent.category.LAUNCHER" />
+   19:             </intent-filter>
+   20:         </activity>
+   21:     </application>
+   22: 
+   23: </manifest>
+
+ARCHIVO: app/src/main/kotlin/org/idmji/biblia/data/BibleRepository.kt
+SHA256: 690eb60624b627245b14ee9353853e0cc0238aa0683268340561cf7b07bf862f
+    1: package org.idmji.biblia.data
+    2: 
+    3: import android.content.Context
+    4: import android.content.SharedPreferences
+    5: import kotlinx.coroutines.flow.MutableStateFlow
+    6: import kotlinx.coroutines.flow.StateFlow
+    7: import kotlinx.coroutines.flow.asStateFlow
+    8: import org.idmji.biblia.model.Book
+    9: import org.idmji.biblia.model.CompendioItem
+   10: import org.idmji.biblia.model.CrossReference
+   11: import org.idmji.biblia.model.DictionaryEntry
+   12: import org.idmji.biblia.model.DictionaryLetter
+   13: import org.idmji.biblia.model.Pericopa
+   14: import org.idmji.biblia.model.ReadingSettings
+   15: import org.idmji.biblia.model.ReadingTheme
+   16: import org.idmji.biblia.model.ResolvedReference
+   17: import org.idmji.biblia.model.SearchResult
+   18: import org.idmji.biblia.model.Verse
+   19: 
+   20: class BibleRepository(context: Context) {
+   21:     private val dbHelper = BibleDatabaseHelper.getInstance(context)
+   22:     private val prefs: SharedPreferences = context.getSharedPreferences("biblia_idmji_prefs", Context.MODE_PRIVATE)
+   23: 
+   24:     private val _settings = MutableStateFlow(loadSettings())
+   25:     val settings: StateFlow<ReadingSettings> = _settings.asStateFlow()
+   26: 
+   27:     private fun loadSettings(): ReadingSettings {
+   28:         val fontSize = prefs.getFloat("font_size", 18f)
+   29:         val themeName = prefs.getString("theme", ReadingTheme.SEPIA.name) ?: ReadingTheme.SEPIA.name
+   30:         val theme = try { ReadingTheme.valueOf(themeName) } catch (_: Exception) { ReadingTheme.SEPIA }
+   31:         val isSerif = prefs.getBoolean("is_serif", true)
+   32:         val isVerseByVerse = prefs.getBoolean("is_verse_by_verse", true)
+   33:         return ReadingSettings(
+   34:             fontSizeSp = fontSize,
+   35:             theme = theme,
+   36:             isSerif = isSerif,
+   37:             isVerseByVerse = isVerseByVerse
+   38:         )
+   39:     }
+   40: 
+   41:     fun updateSettings(newSettings: ReadingSettings) {
+   42:         _settings.value = newSettings
+   43:         prefs.edit()
+   44:             .putFloat("font_size", newSettings.fontSizeSp)
+   45:             .putString("theme", newSettings.theme.name)
+   46:             .putBoolean("is_serif", newSettings.isSerif)
+   47:             .putBoolean("is_verse_by_verse", newSettings.isVerseByVerse)
+   48:             .apply()
+   49:     }
+   50: 
+   51:     suspend fun getBooks(): List<Book> = dbHelper.getBooks()
+   52: 
+   53:     suspend fun getVerses(bookId: Int, chapter: Int): List<Verse> = dbHelper.getVerses(bookId, chapter)
+   54: 
+   55:     suspend fun searchVerses(query: String): List<SearchResult> = dbHelper.searchVerses(query)
+   56: 
+   57:     suspend fun setHighlight(bookId: Int, chapter: Int, verse: Int, colorHex: String?) {
+   58:         dbHelper.setHighlight(bookId, chapter, verse, colorHex)
+   59:     }
+   60: 
+   61:     suspend fun saveNote(bookId: Int, chapter: Int, verse: Int, note: String) {
+   62:         dbHelper.saveNote(bookId, chapter, verse, note)
+   63:     }
+   64: 
+   65:     suspend fun saveLastPosition(bookId: Int, chapter: Int, verse: Int) {
+   66:         dbHelper.saveLastPosition(bookId, chapter, verse)
+   67:     }
+   68: 
+   69:     suspend fun getLastPosition(): Triple<Int, Int, Int> = dbHelper.getLastPosition()
+   70: 
+   71:     suspend fun getDictionaryLetters(): List<DictionaryLetter> = dbHelper.getDictionaryLetters()
+   72: 
+   73:     suspend fun getDictionaryEntries(letter: String? = null, query: String? = null, limit: Int = 500): List<DictionaryEntry> =
+   74:         dbHelper.getDictionaryEntries(letter, query, limit)
+   75: 
+   76:     suspend fun getDictionaryEntry(id: Int): DictionaryEntry? = dbHelper.getDictionaryEntry(id)
+   77: 
+   78:     suspend fun getDictionaryEntriesForWords(words: List<String>): List<DictionaryEntry> =
+   79:         dbHelper.getDictionaryEntriesForWords(words)
+   80: 
+   81:     suspend fun getPericopasForChapter(bookId: Int, chapter: Int): Map<Int, Pericopa> =
+   82:         dbHelper.getPericopasForChapter(bookId, chapter)
+   83: 
+   84:     suspend fun getOfficialNotesForChapter(bookId: Int, chapter: Int): Map<Int, String> =
+   85:         dbHelper.getOfficialNotesForChapter(bookId, chapter)
+   86: 
+   87:     suspend fun getOfficialNoteForVerse(bookId: Int, chapter: Int, verse: Int): String? =
+   88:         dbHelper.getOfficialNoteForVerse(bookId, chapter, verse)
+   89: 
+   90:     suspend fun getPericopaForVerse(bookId: Int, chapter: Int, verse: Int): Pericopa? =
+   91:         dbHelper.getPericopaForVerse(bookId, chapter, verse)
+   92: 
+   93:     suspend fun getTskReferencesForVerse(bookId: Int, chapter: Int, verse: Int, limit: Int = 15): List<CrossReference> =
+   94:         dbHelper.getTskReferencesForVerse(bookId, chapter, verse, limit)
+   95: 
+   96:     suspend fun parseAndResolveOfficialNote(noteText: String): List<ResolvedReference> =
+   97:         dbHelper.parseAndResolveOfficialNote(noteText)
+   98: 
+   99:     fun getBookName(bookId: Int): String = dbHelper.getBookName(bookId)
+  100: 
+  101:     suspend fun getCompendioForVerse(bookId: Int, chapter: Int, verse: Int): List<CompendioItem> =
+  102:         dbHelper.getCompendioForVerse(bookId, chapter, verse)
+  103: 
+  104:     suspend fun getCompendioVersesForChapter(bookId: Int, chapter: Int): Set<Int> =
+  105:         dbHelper.getCompendioVersesForChapter(bookId, chapter)
+  106: 
+  107:     suspend fun getCanonicalBooksWithCompendio(): List<Pair<Book, Int>> =
+  108:         dbHelper.getCanonicalBooksWithCompendio()
+  109: 
+  110:     suspend fun getCompendioForBook(bookId: Int): List<CompendioItem> =
+  111:         dbHelper.getCompendioForBook(bookId)
+  112: 
+  113:     suspend fun getThematicCompendio(query: String = ""): List<CompendioItem> =
+  114:         dbHelper.getThematicCompendio(query)
+  115: 
+  116:     suspend fun searchCompendioGlobal(query: String): List<CompendioItem> =
+  117:         dbHelper.searchCompendioGlobal(query)
+  118: 
+  119:     suspend fun getCompendioItemDetail(id: Int): CompendioItem? =
+  120:         dbHelper.getCompendioItemDetail(id)
+  121: }
+
+ARCHIVO: app/src/main/kotlin/org/idmji/biblia/data/BibleDatabaseHelper.kt
+SHA256: d89f00af4475f685c64c8be38b6a91658c4a38e435ecff181f9a797f52a3f332
+    1: package org.idmji.biblia.data
+    2: 
+    3: import android.content.ContentValues
+    4: import android.content.Context
+    5: import android.database.sqlite.SQLiteDatabase
+    6: import android.database.sqlite.SQLiteOpenHelper
+    7: import kotlinx.coroutines.Dispatchers
+    8: import kotlinx.coroutines.withContext
+    9: import org.idmji.biblia.model.Book
+   10: import org.idmji.biblia.model.CompendioItem
+   11: import org.idmji.biblia.model.CrossReference
+   12: import org.idmji.biblia.model.DictionaryEntry
+   13: import org.idmji.biblia.model.DictionaryLetter
+   14: import org.idmji.biblia.model.Pericopa
+   15: import org.idmji.biblia.model.ResolvedReference
+   16: import org.idmji.biblia.model.SearchResult
+   17: import org.idmji.biblia.model.Verse
+   18: import java.io.File
+   19: import java.io.FileOutputStream
+   20: import java.text.Normalizer
+   21: 
+   22: class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
+   23: 
+   24:     companion object {
+   25:         private const val DB_NAME = "biblia_rvr1960.db"
+   26:         private const val DB_VERSION = 1
+   27: 
+   28:         // Orden canónico según Manual para Leer la Biblia de la IDMJI (Columna derecha)
+   29:         val NT_IDMJI_ORDER = listOf(
+   30:             "Mateo", "Marcos", "Lucas", "Juan", "Hechos",
+   31:             "Romanos", "1 Corintios", "2 Corintios", "Gálatas", "Efesios", "Filipenses", "Colosenses",
+   32:             "1 Tesalonicenses", "2 Tesalonicenses", "1 Timoteo", "2 Timoteo", "Tito", "Filemón",
+   33:             "Hebreos", "Santiago", "1 Pedro", "2 Pedro",
+   34:             "Judas", "1 Juan", "Apocalipsis", "2 Juan", "3 Juan"
+   35:         )
+   36:         private val NT_ORDER_MAP = NT_IDMJI_ORDER.mapIndexed { index, name -> name to index }.toMap()
+   37: 
+   38:         @Volatile
+   39:         private var instance: BibleDatabaseHelper? = null
+   40: 
+   41:         val SBU_ABBR_MAP = mapOf(
+   42:             "gn" to 1, "ex" to 2, "éx" to 2, "lv" to 3, "nm" to 4, "dt" to 5,
+   43:             "jos" to 6, "jue" to 7, "rt" to 8,
+   44:             "1 s" to 9, "1s" to 9, "2 s" to 10, "2s" to 10,
+   45:             "1 r" to 11, "1r" to 11, "2 r" to 12, "2r" to 12,
+   46:             "1 cr" to 13, "1cr" to 13, "2 cr" to 14, "2cr" to 14,
+   47:             "esd" to 15, "neh" to 16, "est" to 17, "job" to 18,
+   48:             "sal" to 19, "pr" to 20, "ec" to 21, "cant" to 22,
+   49:             "is" to 23, "jer" to 24, "lam" to 25, "ez" to 26, "dn" to 27,
+   50:             "os" to 28, "jl" to 29, "am" to 30, "abd" to 31, "jon" to 32,
+   51:             "miq" to 33, "nah" to 34, "hab" to 35, "sof" to 36, "hag" to 37,
+   52:             "zac" to 38, "mal" to 39,
+   53:             "mt" to 40, "mr" to 41, "mc" to 41, "lc" to 42, "jn" to 43,
+   54:             "hch" to 44, "ro" to 45,
+   55:             "1 co" to 46, "1co" to 46, "2 co" to 47, "2co" to 47,
+   56:             "gá" to 48, "ga" to 48, "ef" to 49, "fil" to 50, "col" to 51,
+   57:             "1 ts" to 52, "1ts" to 52, "2 ts" to 53, "2ts" to 53,
+   58:             "1 ti" to 54, "1ti" to 54, "2 ti" to 55, "2ti" to 55,
+   59:             "tit" to 56, "flm" to 57, "he" to 58, "stg" to 59,
+   60:             "1 p" to 60, "1p" to 60, "2 p" to 61, "2p" to 61,
+   61:             "1 jn" to 62, "1jn" to 62, "2 jn" to 63, "2jn" to 63, "3 jn" to 64, "3jn" to 64,
+   62:             "jud" to 65, "ap" to 66
+   63:         )
+   64: 
+   65:         fun getInstance(context: Context): BibleDatabaseHelper {
+   66:             return instance ?: synchronized(this) {
+   67:                 instance ?: BibleDatabaseHelper(context.applicationContext).also { instance = it }
+   68:             }
+   69:         }
+   70:     }
+   71: 
+   72:     init {
+   73:         ensureDatabaseCopied()
+   74:     }
+   75: 
+   76:     private fun normalizeForSearch(text: String): String {
+   77:         return Normalizer.normalize(text.trim().lowercase(), Normalizer.Form.NFD)
+   78:             .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
+   79:     }
+   80: 
+   81:     private fun ensureDatabaseCopied() {
+   82:         val dbFile = context.getDatabasePath(DB_NAME)
+   83:         if (!dbFile.exists()) {
+   84:             dbFile.parentFile?.mkdirs()
+   85:             context.assets.open(DB_NAME).use { input ->
+   86:                 FileOutputStream(dbFile).use { output ->
+   87:                     input.copyTo(output)
+   88:                 }
+   89:             }
+   90:         } else {
+   91:             // Verificar si la base de datos instalada tiene las tablas de referencias y compendio
+   92:             var hasReferencias = false
+   93:             var hasCompendio = false
+   94:             try {
+   95:                 val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+   96:                 val cursor = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='referencias_cruzadas'", null)
+   97:                 hasReferencias = cursor.use { it.moveToFirst() }
+   98:                 val cComp = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='compendio_idmji'", null)
+   99:                 hasCompendio = cComp.use { it.moveToFirst() }
+  100:                 db.close()
+  101:             } catch (_: Exception) {
+  102:                 hasReferencias = false
+  103:                 hasCompendio = false
+  104:             }
+  105: 
+  106:             if (!hasReferencias || !hasCompendio) {
+  107:                 // Preservar marcadores e historial del usuario
+  108:                 val marcadores = mutableListOf<ContentValues>()
+  109:                 val historial = mutableListOf<ContentValues>()
+  110:                 try {
+  111:                     val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+  112:                     val mCursor = db.rawQuery("SELECT libro_id, capitulo, versiculo, color, nota FROM marcadores", null)
+  113:                     mCursor.use {
+  114:                         while (it.moveToNext()) {
+  115:                             val cv = ContentValues()
+  116:                             cv.put("libro_id", it.getInt(0))
+  117:                             cv.put("capitulo", it.getInt(1))
+  118:                             cv.put("versiculo", it.getInt(2))
+  119:                             if (!it.isNull(3)) cv.put("color", it.getString(3))
+  120:                             if (!it.isNull(4)) cv.put("nota", it.getString(4))
+  121:                             marcadores.add(cv)
+  122:                         }
+  123:                     }
+  124:                     val hCursor = db.rawQuery("SELECT id, libro_id, capitulo, versiculo FROM historial", null)
+  125:                     hCursor.use {
+  126:                         while (it.moveToNext()) {
+  127:                             val cv = ContentValues()
+  128:                             cv.put("id", it.getInt(0))
+  129:                             cv.put("libro_id", it.getInt(1))
+  130:                             cv.put("capitulo", it.getInt(2))
+  131:                             cv.put("versiculo", it.getInt(3))
+  132:                             historial.add(cv)
+  133:                         }
+  134:                     }
+  135:                     db.close()
+  136:                 } catch (_: Exception) {}
+  137: 
+  138:                 // Sobrescribir con la base de datos de assets que contiene la tabla diccionario
+  139:                 context.assets.open(DB_NAME).use { input ->
+  140:                     FileOutputStream(dbFile).use { output ->
+  141:                         input.copyTo(output)
+  142:                     }
+  143:                 }
+  144: 
+  145:                 // Restaurar marcadores e historial
+  146:                 try {
+  147:                     val newDb = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+  148:                     newDb.beginTransaction()
+  149:                     try {
+  150:                         for (cv in marcadores) {
+  151:                             newDb.insertWithOnConflict("marcadores", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+  152:                         }
+  153:                         for (cv in historial) {
+  154:                             newDb.insertWithOnConflict("historial", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+  155:                         }
+  156:                         newDb.setTransactionSuccessful()
+  157:                     } finally {
+  158:                         newDb.endTransaction()
+  159:                         newDb.close()
+  160:                     }
+  161:                 } catch (_: Exception) {}
+  162:             }
+  163:         }
+  164:     }
+  165: 
+  166:     override fun onCreate(db: SQLiteDatabase) {
+  167:         // La base de datos viene preempaquetada en assets
+  168:     }
+  169: 
+  170:     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+  171:         // En caso de actualización de versión
+  172:     }
+  173: 
+  174:     suspend fun getBooks(): List<Book> = withContext(Dispatchers.IO) {
+  175:         val list = mutableListOf<Book>()
+  176:         val db = readableDatabase
+  177:         val cursor = db.rawQuery("SELECT id, nombre, abreviatura, testamento, categoria, num_capitulos FROM libros ORDER BY id ASC", null)
+  178:         cursor.use {
+  179:             while (it.moveToNext()) {
+  180:                 list.add(
+  181:                     Book(
+  182:                         id = it.getInt(0),
+  183:                         name = it.getString(1),
+  184:                         abbreviation = it.getString(2),
+  185:                         testament = it.getString(3),
+  186:                         category = it.getString(4),
+  187:                         chaptersCount = it.getInt(5)
+  188:                     )
+  189:                 )
+  190:             }
+  191:         }
+  192:         val atBooks = list.filter { it.testament == "AT" }.sortedBy { it.id }
+  193:         val ntBooks = list.filter { it.testament == "NT" }.sortedBy { NT_ORDER_MAP[it.name] ?: 999 }
+  194:         atBooks + ntBooks
+  195:     }
+  196: 
+  197:     suspend fun getVerses(bookId: Int, chapter: Int): List<Verse> = withContext(Dispatchers.IO) {
+  198:         val list = mutableListOf<Verse>()
+  199:         val db = readableDatabase
+  200:         val query = """
+  201:             SELECT v.id, v.libro_id, v.capitulo, v.versiculo, v.texto, m.color, m.nota
+  202:             FROM versiculos v
+  203:             LEFT JOIN marcadores m ON v.libro_id = m.libro_id AND v.capitulo = m.capitulo AND v.versiculo = m.versiculo
+  204:             WHERE v.libro_id = ? AND v.capitulo = ?
+  205:             ORDER BY v.versiculo ASC
+  206:         """.trimIndent()
+  207: 
+  208:         val cursor = db.rawQuery(query, arrayOf(bookId.toString(), chapter.toString()))
+  209:         cursor.use {
+  210:             while (it.moveToNext()) {
+  211:                 list.add(
+  212:                     Verse(
+  213:                         id = it.getInt(0),
+  214:                         bookId = it.getInt(1),
+  215:                         chapter = it.getInt(2),
+  216:                         verse = it.getInt(3),
+  217:                         text = it.getString(4),
+  218:                         highlightColor = it.getString(5),
+  219:                         note = it.getString(6)
+  220:                     )
+  221:                 )
+  222:             }
+  223:         }
+  224:         list
+  225:     }
+  226: 
+  227:     suspend fun searchVerses(queryText: String, limit: Int = 100): List<SearchResult> = withContext(Dispatchers.IO) {
+  228:         val list = mutableListOf<SearchResult>()
+  229:         if (queryText.trim().isEmpty()) return@withContext list
+  230: 
+  231:         val db = readableDatabase
+  232:         val sql = """
+  233:             SELECT v.id, v.libro_id, l.nombre, v.capitulo, v.versiculo, v.texto
+  234:             FROM versiculos v
+  235:             JOIN libros l ON v.libro_id = l.id
+  236:             WHERE v.texto LIKE ?
+  237:             ORDER BY v.libro_id ASC, v.capitulo ASC, v.versiculo ASC
+  238:             LIMIT ?
+  239:         """.trimIndent()
+  240: 
+  241:         val cursor = db.rawQuery(sql, arrayOf("%${queryText.trim()}%", limit.toString()))
+  242:         cursor.use {
+  243:             while (it.moveToNext()) {
+  244:                 list.add(
+  245:                     SearchResult(
+  246:                         verseId = it.getInt(0),
+  247:                         bookId = it.getInt(1),
+  248:                         bookName = it.getString(2),
+  249:                         chapter = it.getInt(3),
+  250:                         verse = it.getInt(4),
+  251:                         text = it.getString(5)
+  252:                     )
+  253:                 )
+  254:             }
+  255:         }
+  256:         list
+  257:     }
+  258: 
+  259:     suspend fun setHighlight(bookId: Int, chapter: Int, verse: Int, colorHex: String?) = withContext(Dispatchers.IO) {
+  260:         val db = writableDatabase
+  261:         if (colorHex == null) {
+  262:             // Eliminar resaltado si tampoco hay nota
+  263:             db.delete("marcadores", "libro_id = ? AND capitulo = ? AND versiculo = ? AND (nota IS NULL OR nota = '')", 
+  264:                 arrayOf(bookId.toString(), chapter.toString(), verse.toString()))
+  265:             // Si hay nota, solo limpiar el color
+  266:             val cv = ContentValues().apply { putNull("color") }
+  267:             db.update("marcadores", cv, "libro_id = ? AND capitulo = ? AND versiculo = ?", 
+  268:                 arrayOf(bookId.toString(), chapter.toString(), verse.toString()))
+  269:         } else {
+  270:             val cv = ContentValues().apply {
+  271:                 put("libro_id", bookId)
+  272:                 put("capitulo", chapter)
+  273:                 put("versiculo", verse)
+  274:                 put("color", colorHex)
+  275:             }
+  276:             db.insertWithOnConflict("marcadores", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+  277:         }
+  278:     }
+  279: 
+  280:     suspend fun saveNote(bookId: Int, chapter: Int, verse: Int, noteText: String) = withContext(Dispatchers.IO) {
+  281:         val db = writableDatabase
+  282:         val trimmed = noteText.trim()
+  283:         if (trimmed.isEmpty()) {
+  284:             db.delete("marcadores", "libro_id = ? AND capitulo = ? AND versiculo = ? AND color IS NULL", 
+  285:                 arrayOf(bookId.toString(), chapter.toString(), verse.toString()))
+  286:             val cv = ContentValues().apply { putNull("nota") }
+  287:             db.update("marcadores", cv, "libro_id = ? AND capitulo = ? AND versiculo = ?", 
+  288:                 arrayOf(bookId.toString(), chapter.toString(), verse.toString()))
+  289:         } else {
+  290:             val cv = ContentValues().apply {
+  291:                 put("libro_id", bookId)
+  292:                 put("capitulo", chapter)
+  293:                 put("versiculo", verse)
+  294:                 put("nota", trimmed)
+  295:             }
+  296:             db.insertWithOnConflict("marcadores", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+  297:         }
+  298:     }
+  299: 
+  300:     suspend fun saveLastPosition(bookId: Int, chapter: Int, verse: Int) = withContext(Dispatchers.IO) {
+  301:         val db = writableDatabase
+  302:         val cv = ContentValues().apply {
+  303:             put("id", 1)
+  304:             put("libro_id", bookId)
+  305:             put("capitulo", chapter)
+  306:             put("versiculo", verse)
+  307:         }
+  308:         db.insertWithOnConflict("historial", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+  309:     }
+  310: 
+  311:     suspend fun getLastPosition(): Triple<Int, Int, Int> = withContext(Dispatchers.IO) {
+  312:         val db = readableDatabase
+  313:         val cursor = db.rawQuery("SELECT libro_id, capitulo, versiculo FROM historial WHERE id = 1", null)
+  314:         cursor.use {
+  315:             if (it.moveToFirst()) {
+  316:                 Triple(it.getInt(0), it.getInt(1), it.getInt(2))
+  317:             } else {
+  318:                 Triple(1, 1, 1) // Génesis 1:1 por defecto
+  319:             }
+  320:         }
+  321:     }
+  322: 
+  323:     suspend fun getDictionaryLetters(): List<DictionaryLetter> = withContext(Dispatchers.IO) {
+  324:         val list = mutableListOf<DictionaryLetter>()
+  325:         val db = readableDatabase
+  326:         val cursor = db.rawQuery("SELECT letra, COUNT(*) FROM diccionario GROUP BY letra ORDER BY letra ASC", null)
+  327:         cursor.use {
+  328:             while (it.moveToNext()) {
+  329:                 list.add(DictionaryLetter(it.getString(0), it.getInt(1)))
+  330:             }
+  331:         }
+  332:         list
+  333:     }
+  334: 
+  335:     suspend fun getDictionaryEntries(letter: String? = null, query: String? = null, limit: Int = 500): List<DictionaryEntry> = withContext(Dispatchers.IO) {
+  336:         val list = mutableListOf<DictionaryEntry>()
+  337:         val db = readableDatabase
+  338:         val qClean = if (!query.isNullOrBlank()) normalizeForSearch(query) else null
+  339: 
+  340:         val cursor = when {
+  341:             qClean != null -> {
+  342:                 db.rawQuery(
+  343:                     "SELECT id, letra, termino, definicion FROM diccionario WHERE termino_limpio LIKE ? ORDER BY termino ASC LIMIT ?",
+  344:                     arrayOf("%$qClean%", limit.toString())
+  345:                 )
+  346:             }
+  347:             !letter.isNullOrBlank() -> {
+  348:                 db.rawQuery(
+  349:                     "SELECT id, letra, termino, definicion FROM diccionario WHERE letra = ? ORDER BY termino ASC LIMIT ?",
+  350:                     arrayOf(letter.uppercase(), limit.toString())
+  351:                 )
+  352:             }
+  353:             else -> {
+  354:                 db.rawQuery(
+  355:                     "SELECT id, letra, termino, definicion FROM diccionario ORDER BY termino ASC LIMIT ?",
+  356:                     arrayOf(limit.toString())
+  357:                 )
+  358:             }
+  359:         }
+  360: 
+  361:         cursor.use {
+  362:             while (it.moveToNext()) {
+  363:                 list.add(
+  364:                     DictionaryEntry(
+  365:                         id = it.getInt(0),
+  366:                         letter = it.getString(1),
+  367:                         term = it.getString(2),
+  368:                         definition = it.getString(3)
+  369:                     )
+  370:                 )
+  371:             }
+  372:         }
+  373:         list
+  374:     }
+  375: 
+  376:     suspend fun getDictionaryEntry(id: Int): DictionaryEntry? = withContext(Dispatchers.IO) {
+  377:         val db = readableDatabase
+  378:         val cursor = db.rawQuery("SELECT id, letra, termino, definicion FROM diccionario WHERE id = ?", arrayOf(id.toString()))
+  379:         cursor.use {
+  380:             if (it.moveToFirst()) {
+  381:                 DictionaryEntry(
+  382:                     id = it.getInt(0),
+  383:                     letter = it.getString(1),
+  384:                     term = it.getString(2),
+  385:                     definition = it.getString(3)
+  386:                 )
+  387:             } else null
+  388:         }
+  389:     }
+  390: 
+  391:     suspend fun getDictionaryEntriesForWords(words: List<String>): List<DictionaryEntry> = withContext(Dispatchers.IO) {
+  392:         val list = mutableListOf<DictionaryEntry>()
+  393:         if (words.isEmpty()) return@withContext list
+  394:         val db = readableDatabase
+  395: 
+  396:         val cleanWords = mutableSetOf<String>()
+  397:         for (w in words) {
+  398:             val cl = normalizeForSearch(w)
+  399:             if (cl.length >= 3) {
+  400:                 cleanWords.add(cl)
+  401:                 if (cl.endsWith("es")) cleanWords.add(cl.dropLast(2))
+  402:                 else if (cl.endsWith("s")) cleanWords.add(cl.dropLast(1))
+  403:             }
+  404:         }
+  405:         if (cleanWords.isEmpty()) return@withContext list
+  406: 
+  407:         val placeholders = cleanWords.joinToString(",") { "?" }
+  408:         val query = "SELECT id, letra, termino, definicion FROM diccionario WHERE termino_limpio IN ($placeholders) ORDER BY termino ASC"
+  409:         val cursor = db.rawQuery(query, cleanWords.toTypedArray())
+  410:         cursor.use {
+  411:             while (it.moveToNext()) {
+  412:                 list.add(
+  413:                     DictionaryEntry(
+  414:                         id = it.getInt(0),
+  415:                         letter = it.getString(1),
+  416:                         term = it.getString(2),
+  417:                         definition = it.getString(3)
+  418:                     )
+  419:                 )
+  420:             }
+  421:         }
+  422:         list
+  423:     }
+  424: 
+  425:     // ==========================================
+  426:     // MÉTODOS DE REFERENCIAS CRUZADAS Y PERÍCOPES
+  427:     // ==========================================
+  428: 
+  429:     suspend fun getPericopasForChapter(bookId: Int, chapter: Int): Map<Int, Pericopa> = withContext(Dispatchers.IO) {
+  430:         val map = mutableMapOf<Int, Pericopa>()
+  431:         val db = readableDatabase
+  432:         val cursor = db.rawQuery(
+  433:             "SELECT id, libro_id, capitulo, versiculo, titulo, pasajes_paralelos FROM pericopas WHERE libro_id = ? AND capitulo = ?",
+  434:             arrayOf(bookId.toString(), chapter.toString())
+  435:         )
+  436:         cursor.use {
+  437:             while (it.moveToNext()) {
+  438:                 val p = Pericopa(
+  439:                     id = it.getLong(0),
+  440:                     bookId = it.getInt(1),
+  441:                     chapter = it.getInt(2),
+  442:                     verse = it.getInt(3),
+  443:                     title = it.getString(4),
+  444:                     parallelPassages = if (it.isNull(5)) null else it.getString(5)
+  445:                 )
+  446:                 map[p.verse] = p
+  447:             }
+  448:         }
+  449:         map
+  450:     }
+  451: 
+  452:     suspend fun getOfficialNotesForChapter(bookId: Int, chapter: Int): Map<Int, String> = withContext(Dispatchers.IO) {
+  453:         val map = mutableMapOf<Int, String>()
+  454:         val db = readableDatabase
+  455:         val cursor = db.rawQuery(
+  456:             "SELECT versiculo, nota FROM referencias_rvr1960 WHERE libro_id = ? AND capitulo = ?",
+  457:             arrayOf(bookId.toString(), chapter.toString())
+  458:         )
+  459:         cursor.use {
+  460:             while (it.moveToNext()) {
+  461:                 map[it.getInt(0)] = it.getString(1)
+  462:             }
+  463:         }
+  464:         map
+  465:     }
+  466: 
+  467:     suspend fun getOfficialNoteForVerse(bookId: Int, chapter: Int, verse: Int): String? = withContext(Dispatchers.IO) {
+  468:         val db = readableDatabase
+  469:         val cursor = db.rawQuery(
+  470:             "SELECT nota FROM referencias_rvr1960 WHERE libro_id = ? AND capitulo = ? AND versiculo = ?",
+  471:             arrayOf(bookId.toString(), chapter.toString(), verse.toString())
+  472:         )
+  473:         cursor.use {
+  474:             if (it.moveToFirst()) it.getString(0) else null
+  475:         }
+  476:     }
+  477: 
+  478:     suspend fun getPericopaForVerse(bookId: Int, chapter: Int, verse: Int): Pericopa? = withContext(Dispatchers.IO) {
+  479:         val db = readableDatabase
+  480:         val cursor = db.rawQuery(
+  481:             "SELECT id, libro_id, capitulo, versiculo, titulo, pasajes_paralelos FROM pericopas WHERE libro_id = ? AND capitulo = ? AND versiculo <= ? ORDER BY versiculo DESC LIMIT 1",
+  482:             arrayOf(bookId.toString(), chapter.toString(), verse.toString())
+  483:         )
+  484:         cursor.use {
+  485:             if (it.moveToFirst()) {
+  486:                 Pericopa(
+  487:                     id = it.getLong(0),
+  488:                     bookId = it.getInt(1),
+  489:                     chapter = it.getInt(2),
+  490:                     verse = it.getInt(3),
+  491:                     title = it.getString(4),
+  492:                     parallelPassages = if (it.isNull(5)) null else it.getString(5)
+  493:                 )
+  494:             } else null
+  495:         }
+  496:     }
+  497: 
+  498:     suspend fun getTskReferencesForVerse(bookId: Int, chapter: Int, verse: Int, limit: Int = 15): List<CrossReference> = withContext(Dispatchers.IO) {
+  499:         val list = mutableListOf<CrossReference>()
+  500:         val db = readableDatabase
+  501:         val cursor = db.rawQuery(
+  502:             """
+  503:             SELECT rc.id, rc.origen_libro_id, rc.origen_capitulo, rc.origen_versiculo,
+  504:                    rc.destino_libro_id, l.nombre, rc.destino_capitulo,
+  505:                    rc.destino_versiculo_inicio, rc.destino_versiculo_fin, rc.votos
+  506:             FROM referencias_cruzadas rc
+  507:             JOIN libros l ON l.id = rc.destino_libro_id
+  508:             WHERE rc.origen_libro_id = ? AND rc.origen_capitulo = ? AND rc.origen_versiculo = ?
+  509:             ORDER BY rc.votos DESC
+  510:             LIMIT ?
+  511:             """.trimIndent(),
+  512:             arrayOf(bookId.toString(), chapter.toString(), verse.toString(), limit.toString())
+  513:         )
+  514:         cursor.use {
+  515:             while (it.moveToNext()) {
+  516:                 val destBookId = it.getInt(4)
+  517:                 val destChapter = it.getInt(6)
+  518:                 val destStart = it.getInt(7)
+  519:                 val destEnd = it.getInt(8)
+  520:                 list.add(
+  521:                     CrossReference(
+  522:                         id = it.getLong(0),
+  523:                         originBookId = it.getInt(1),
+  524:                         originChapter = it.getInt(2),
+  525:                         originVerse = it.getInt(3),
+  526:                         destBookId = destBookId,
+  527:                         destBookName = it.getString(5),
+  528:                         destChapter = destChapter,
+  529:                         destVerseStart = destStart,
+  530:                         destVerseEnd = destEnd,
+  531:                         votes = it.getInt(9),
+  532:                         text = resolvePassageText(db, destBookId, destChapter, destStart, destEnd)
+  533:                     )
+  534:                 )
+  535:             }
+  536:         }
+  537:         list
+  538:     }
+  539: 
+  540:     suspend fun parseAndResolveOfficialNote(noteText: String): List<ResolvedReference> = withContext(Dispatchers.IO) {
+  541:         val list = mutableListOf<ResolvedReference>()
+  542:         val db = readableDatabase
+  543:         var currentBookId: Int? = null
+  544: 
+  545:         val parts = noteText.split(';').map { it.trim().trimEnd('.') }.filter { it.isNotEmpty() }
+  546:         val bookRegex = Regex("""^((?:[1-3]\s+)?[a-zA-ZáéíóúÁÉÍÓÚñÑ]+)\.?\s*(.*)$""")
+  547:         val cvRegex = Regex("""^(\d+)\.(\d+)(?:-(\d+))?""")
+  548: 
+  549:         for (part in parts) {
+  550:             val bookMatch = bookRegex.find(part)
+  551:             val rest = if (bookMatch != null && SBU_ABBR_MAP.containsKey(bookMatch.groupValues[1].lowercase())) {
+  552:                 currentBookId = SBU_ABBR_MAP[bookMatch.groupValues[1].lowercase()]
+  553:                 bookMatch.groupValues[2].trim()
+  554:             } else {
+  555:                 part
+  556:             }
+  557: 
+  558:             val bId = currentBookId ?: continue
+  559:             val bName = getBookName(bId)
+  560: 
+  561:             val cvMatch = cvRegex.find(rest)
+  562:             if (cvMatch != null) {
+  563:                 val chapter = cvMatch.groupValues[1].toIntOrNull() ?: continue
+  564:                 val vStart = cvMatch.groupValues[2].toIntOrNull() ?: continue
+  565:                 val vEnd = cvMatch.groupValues[3].toIntOrNull() ?: vStart
+  566:                 val text = resolvePassageText(db, bId, chapter, vStart, vEnd)
+  567:                 val citation = if (vStart == vEnd) "$bName $chapter:$vStart" else "$bName $chapter:$vStart-$vEnd"
+  568:                 list.add(
+  569:                     ResolvedReference(
+  570:                         citation = citation,
+  571:                         bookId = bId,
+  572:                         bookName = bName,
+  573:                         chapter = chapter,
+  574:                         verseStart = vStart,
+  575:                         verseEnd = vEnd,
+  576:                         text = text
+  577:                     )
+  578:                 )
+  579:             }
+  580:         }
+  581:         list
+  582:     }
+  583: 
+  584:     fun getBookName(bookId: Int): String {
+  585:         val db = readableDatabase
+  586:         val cursor = db.rawQuery("SELECT nombre FROM libros WHERE id = ?", arrayOf(bookId.toString()))
+  587:         return cursor.use {
+  588:             if (it.moveToFirst()) it.getString(0) else "Libro $bookId"
+  589:         }
+  590:     }
+  591: 
+  592:     fun resolvePassageText(db: SQLiteDatabase, bookId: Int, chapter: Int, startVerse: Int, endVerse: Int): String {
+  593:         val cursor = db.rawQuery(
+  594:             "SELECT versiculo, texto FROM versiculos WHERE libro_id = ? AND capitulo = ? AND versiculo >= ? AND versiculo <= ? ORDER BY versiculo",
+  595:             arrayOf(bookId.toString(), chapter.toString(), startVerse.toString(), endVerse.toString())
+  596:         )
+  597:         val sb = StringBuilder()
+  598:         cursor.use {
+  599:             while (it.moveToNext()) {
+  600:                 val vNum = it.getInt(0)
+  601:                 val text = it.getString(1)
+  602:                 if (startVerse == endVerse) {
+  603:                     sb.append(text)
+  604:                 } else {
+  605:                     if (sb.isNotEmpty()) sb.append(" ")
+  606:                     sb.append("[$vNum] $text")
+  607:                 }
+  608:             }
+  609:         }
+  610:         return sb.toString().trim()
+  611:     }
+  612: 
+  613:     // ==========================================
+  614:     // COMPENDIO DOCTRINAL IDMJI
+  615:     // ==========================================
+  616: 
+  617:     private fun cursorToCompendioItem(cursor: android.database.Cursor): CompendioItem {
+  618:         return CompendioItem(
+  619:             id = cursor.getInt(0),
+  620:             tipo = cursor.getString(1),
+  621:             libroId = if (cursor.isNull(2)) null else cursor.getInt(2),
+  622:             libroNombre = if (cursor.isNull(3)) "" else cursor.getString(3),
+  623:             capitulo = if (cursor.isNull(4)) null else cursor.getInt(4),
+  624:             versiculoInicio = if (cursor.isNull(5)) null else cursor.getInt(5),
+  625:             versiculoFin = if (cursor.isNull(6)) null else cursor.getInt(6),
+  626:             cita = if (cursor.isNull(7)) "" else cursor.getString(7),
+  627:             titulo = cursor.getString(8),
+  628:             videoUrl = if (cursor.isNull(9)) "" else cursor.getString(9),
+  629:             videoId = if (cursor.isNull(10)) "" else cursor.getString(10),
+  630:             seccion = if (cursor.isNull(11)) "" else cursor.getString(11),
+  631:             transcripcion = if (cursor.isNull(12)) "" else cursor.getString(12)
+  632:         )
+  633:     }
+  634: 
+  635:     fun getCompendioForVerse(bookId: Int, chapter: Int, verse: Int): List<CompendioItem> {
+  636:         val db = readableDatabase
+  637:         val cursor = db.rawQuery(
+  638:             """
+  639:             SELECT c.id, c.tipo, c.libro_id, l.nombre, c.capitulo, c.versiculo_inicio, c.versiculo_fin,
+  640:                    c.cita, c.titulo, c.video_url, c.video_id, c.seccion, c.transcripcion
+  641:             FROM compendio_idmji c
+  642:             LEFT JOIN libros l ON c.libro_id = l.id
+  643:             WHERE c.tipo = 'CANONICO' AND c.libro_id = ? AND c.capitulo = ? AND ? BETWEEN c.versiculo_inicio AND c.versiculo_fin
+  644:             ORDER BY c.id
+  645:             """.trimIndent(),
+  646:             arrayOf(bookId.toString(), chapter.toString(), verse.toString())
+  647:         )
+  648:         val list = mutableListOf<CompendioItem>()
+  649:         cursor.use {
+  650:             while (it.moveToNext()) {
+  651:                 list.add(cursorToCompendioItem(it))
+  652:             }
+  653:         }
+  654:         return list
+  655:     }
+  656: 
+  657:     fun getCompendioVersesForChapter(bookId: Int, chapter: Int): Set<Int> {
+  658:         val db = readableDatabase
+  659:         val cursor = db.rawQuery(
+  660:             "SELECT versiculo_inicio, versiculo_fin FROM compendio_idmji WHERE tipo = 'CANONICO' AND libro_id = ? AND capitulo = ?",
+  661:             arrayOf(bookId.toString(), chapter.toString())
+  662:         )
+  663:         val verseSet = mutableSetOf<Int>()
+  664:         cursor.use {
+  665:             while (it.moveToNext()) {
+  666:                 val start = it.getInt(0)
+  667:                 val end = it.getInt(1)
+  668:                 if (end >= 999) {
+  669:                     val vCursor = db.rawQuery(
+  670:                         "SELECT MAX(versiculo) FROM versiculos WHERE libro_id = ? AND capitulo = ?",
+  671:                         arrayOf(bookId.toString(), chapter.toString())
+  672:                     )
+  673:                     val maxV = vCursor.use { vc -> if (vc.moveToFirst()) vc.getInt(0) else 50 }
+  674:                     for (v in 1..maxV) {
+  675:                         verseSet.add(v)
+  676:                     }
+  677:                 } else {
+  678:                     for (v in start..end) {
+  679:                         verseSet.add(v)
+  680:                     }
+  681:                 }
+  682:             }
+  683:         }
+  684:         return verseSet
+  685:     }
+  686: 
+  687:     fun getCanonicalBooksWithCompendio(): List<Pair<Book, Int>> {
+  688:         val db = readableDatabase
+  689:         val cursor = db.rawQuery(
+  690:             """
+  691:             SELECT l.id, l.nombre, l.abreviatura, l.testamento, l.categoria, l.num_capitulos, COUNT(c.id) as count
+  692:             FROM libros l
+  693:             JOIN compendio_idmji c ON l.id = c.libro_id
+  694:             WHERE c.tipo = 'CANONICO'
+  695:             GROUP BY l.id
+  696:             ORDER BY l.id
+  697:             """.trimIndent(),
+  698:             null
+  699:         )
+  700:         val list = mutableListOf<Pair<Book, Int>>()
+  701:         cursor.use {
+  702:             while (it.moveToNext()) {
+  703:                 val book = Book(
+  704:                     id = it.getInt(0),
+  705:                     name = it.getString(1),
+  706:                     abbreviation = it.getString(2),
+  707:                     testament = it.getString(3),
+  708:                     category = it.getString(4),
+  709:                     chaptersCount = it.getInt(5)
+  710:                 )
+  711:                 val count = it.getInt(6)
+  712:                 list.add(Pair(book, count))
+  713:             }
+  714:         }
+  715:         return list
+  716:     }
+  717: 
+  718:     fun getCompendioForBook(bookId: Int): List<CompendioItem> {
+  719:         val db = readableDatabase
+  720:         val cursor = db.rawQuery(
+  721:             """
+  722:             SELECT c.id, c.tipo, c.libro_id, l.nombre, c.capitulo, c.versiculo_inicio, c.versiculo_fin,
+  723:                    c.cita, c.titulo, c.video_url, c.video_id, c.seccion, '' as transcripcion
+  724:             FROM compendio_idmji c
+  725:             LEFT JOIN libros l ON c.libro_id = l.id
+  726:             WHERE c.tipo = 'CANONICO' AND c.libro_id = ?
+  727:             ORDER BY c.capitulo ASC, c.versiculo_inicio ASC, c.id ASC
+  728:             """.trimIndent(),
+  729:             arrayOf(bookId.toString())
+  730:         )
+  731:         val list = mutableListOf<CompendioItem>()
+  732:         cursor.use {
+  733:             while (it.moveToNext()) {
+  734:                 list.add(cursorToCompendioItem(it))
+  735:             }
+  736:         }
+  737:         return list
+  738:     }
+  739: 
+  740:     fun getThematicCompendio(query: String = ""): List<CompendioItem> {
+  741:         val db = readableDatabase
+  742:         val sql = if (query.isBlank()) {
+  743:             """
+  744:             SELECT c.id, c.tipo, c.libro_id, '', c.capitulo, c.versiculo_inicio, c.versiculo_fin,
+  745:                    c.cita, c.titulo, c.video_url, c.video_id, c.seccion, '' as transcripcion
+  746:             FROM compendio_idmji c
+  747:             WHERE c.tipo = 'TEMATICO'
+  748:             ORDER BY c.id ASC
+  749:             """.trimIndent()
+  750:         } else {
+  751:             """
+  752:             SELECT c.id, c.tipo, c.libro_id, '', c.capitulo, c.versiculo_inicio, c.versiculo_fin,
+  753:                    c.cita, c.titulo, c.video_url, c.video_id, c.seccion, '' as transcripcion
+  754:             FROM compendio_idmji c
+  755:             WHERE c.tipo = 'TEMATICO' AND (c.titulo LIKE ? OR c.seccion LIKE ?)
+  756:             ORDER BY c.id ASC
+  757:             """.trimIndent()
+  758:         }
+  759:         val args = if (query.isBlank()) null else arrayOf("%$query%", "%$query%")
+  760:         val cursor = db.rawQuery(sql, args)
+  761:         val list = mutableListOf<CompendioItem>()
+  762:         cursor.use {
+  763:             while (it.moveToNext()) {
+  764:                 list.add(cursorToCompendioItem(it))
+  765:             }
+  766:         }
+  767:         return list
+  768:     }
+  769: 
+  770:     fun searchCompendioGlobal(query: String): List<CompendioItem> {
+  771:         if (query.isBlank()) return emptyList()
+  772:         val db = readableDatabase
+  773:         val cursor = db.rawQuery(
+  774:             """
+  775:             SELECT c.id, c.tipo, c.libro_id, COALESCE(l.nombre, ''), c.capitulo, c.versiculo_inicio, c.versiculo_fin,
+  776:                    c.cita, c.titulo, c.video_url, c.video_id, c.seccion, '' as transcripcion
+  777:             FROM compendio_idmji c
+  778:             LEFT JOIN libros l ON c.libro_id = l.id
+  779:             WHERE c.titulo LIKE ? OR c.cita LIKE ? OR c.seccion LIKE ?
+  780:             ORDER BY c.tipo ASC, c.id ASC
+  781:             LIMIT 100
+  782:             """.trimIndent(),
+  783:             arrayOf("%$query%", "%$query%", "%$query%")
+  784:         )
+  785:         val list = mutableListOf<CompendioItem>()
+  786:         cursor.use {
+  787:             while (it.moveToNext()) {
+  788:                 list.add(cursorToCompendioItem(it))
+  789:             }
+  790:         }
+  791:         return list
+  792:     }
+  793: 
+  794:     fun getCompendioItemDetail(id: Int): CompendioItem? {
+  795:         val db = readableDatabase
+  796:         val cursor = db.rawQuery(
+  797:             """
+  798:             SELECT c.id, c.tipo, c.libro_id, COALESCE(l.nombre, ''), c.capitulo, c.versiculo_inicio, c.versiculo_fin,
+  799:                    c.cita, c.titulo, c.video_url, c.video_id, c.seccion, c.transcripcion
+  800:             FROM compendio_idmji c
+  801:             LEFT JOIN libros l ON c.libro_id = l.id
+  802:             WHERE c.id = ?
+  803:             """.trimIndent(),
+  804:             arrayOf(id.toString())
+  805:         )
+  806:         return cursor.use {
+  807:             if (it.moveToFirst()) cursorToCompendioItem(it) else null
+  808:         }
+  809:     }
+  810: }
+
+ARCHIVO: app/src/main/kotlin/org/idmji/biblia/ui/BibleViewModel.kt
+SHA256: 27cba82e91a7be6cb96a275ff591c0f200d634c7617ba219206a8d13ccf5e551
+    1: package org.idmji.biblia.ui
+    2: 
+    3: import android.app.Application
+    4: import androidx.lifecycle.AndroidViewModel
+    5: import androidx.lifecycle.viewModelScope
+    6: import kotlinx.coroutines.flow.MutableStateFlow
+    7: import kotlinx.coroutines.flow.StateFlow
+    8: import kotlinx.coroutines.flow.asStateFlow
+    9: import kotlinx.coroutines.flow.update
+   10: import kotlinx.coroutines.launch
+   11: import org.idmji.biblia.data.BibleRepository
+   12: import org.idmji.biblia.model.Book
+   13: import org.idmji.biblia.model.CompendioItem
+   14: import org.idmji.biblia.model.CrossReference
+   15: import org.idmji.biblia.model.DictionaryEntry
+   16: import org.idmji.biblia.model.DictionaryLetter
+   17: import org.idmji.biblia.model.Pericopa
+   18: import org.idmji.biblia.model.ReadingSettings
+   19: import org.idmji.biblia.model.ReadingTheme
+   20: import org.idmji.biblia.model.ResolvedReference
+   21: import org.idmji.biblia.model.SearchResult
+   22: import org.idmji.biblia.model.Verse
+   23: 
+   24: data class BibleUiState(
+   25:     val isLoading: Boolean = true,
+   26:     val books: List<Book> = emptyList(),
+   27:     val currentBook: Book? = null,
+   28:     val currentChapter: Int = 1,
+   29:     val verses: List<Verse> = emptyList(),
+   30:     val chapterPericopas: Map<Int, Pericopa> = emptyMap(),
+   31:     val chapterOfficialNotes: Map<Int, String> = emptyMap(),
+   32:     val selectedVerse: Verse? = null,
+   33:     val settings: ReadingSettings = ReadingSettings(),
+   34:     val showBookSelector: Boolean = false,
+   35:     val showSettingsSheet: Boolean = false,
+   36:     val showNoteDialog: Boolean = false,
+   37:     val showSearchDialog: Boolean = false,
+   38:     val searchQuery: String = "",
+   39:     val searchResults: List<SearchResult> = emptyList(),
+   40:     val isSearching: Boolean = false,
+   41:     val showDictionaryDialog: Boolean = false,
+   42:     val dictionaryLetters: List<DictionaryLetter> = emptyList(),
+   43:     val selectedDictionaryLetter: String? = "A",
+   44:     val dictionarySearchQuery: String = "",
+   45:     val dictionaryEntries: List<DictionaryEntry> = emptyList(),
+   46:     val selectedDictionaryEntry: DictionaryEntry? = null,
+   47:     val isDictionaryLoading: Boolean = false,
+   48:     val dictionaryVerseCitation: String? = null,
+   49:     val dictionaryVerseMatches: List<DictionaryEntry> = emptyList(),
+   50:     // Referencias cruzadas
+   51:     val showCrossReferencesDialog: Boolean = false,
+   52:     val crossReferenceVerse: Verse? = null,
+   53:     val currentOfficialNote: String? = null,
+   54:     val currentResolvedOfficialRefs: List<ResolvedReference> = emptyList(),
+   55:     val currentTskReferences: List<CrossReference> = emptyList(),
+   56:     val currentPericopaForVerse: Pericopa? = null,
+   57:     val isLoadingCrossReferences: Boolean = false,
+   58:     // Compendio Doctrinal IDMJI
+   59:     val chapterCompendioVerses: Set<Int> = emptySet(),
+   60:     val showVerseCompendioDialog: Boolean = false,
+   61:     val verseCompendioItems: List<CompendioItem> = emptyList(),
+   62:     val verseCompendioTargetVerse: Verse? = null,
+   63:     val showGeneralCompendioDialog: Boolean = false,
+   64:     val compendioBooksWithCounts: List<Pair<Book, Int>> = emptyList(),
+   65:     val compendioSelectedBook: Book? = null,
+   66:     val compendioBookTeachings: List<CompendioItem> = emptyList(),
+   67:     val compendioThematicTeachings: List<CompendioItem> = emptyList(),
+   68:     val compendioSearchQuery: String = "",
+   69:     val compendioSearchResults: List<CompendioItem> = emptyList(),
+   70:     val selectedCompendioItem: CompendioItem? = null,
+   71:     val isCompendioLoading: Boolean = false
+   72: )
+   73: 
+   74: class BibleViewModel(application: Application) : AndroidViewModel(application) {
+   75:     private val repository = BibleRepository(application)
+   76: 
+   77:     private val _uiState = MutableStateFlow(BibleUiState())
+   78:     val uiState: StateFlow<BibleUiState> = _uiState.asStateFlow()
+   79: 
+   80:     init {
+   81:         viewModelScope.launch {
+   82:             // Cargar configuración
+   83:             launch {
+   84:                 repository.settings.collect { newSettings ->
+   85:                     _uiState.update { it.copy(settings = newSettings) }
+   86:                 }
+   87:             }
+   88: 
+   89:             // Cargar libros y última posición
+   90:             val allBooks = repository.getBooks()
+   91:             val (lastBookId, lastChapter, _) = repository.getLastPosition()
+   92:             val initialBook = allBooks.find { it.id == lastBookId } ?: allBooks.firstOrNull() ?: Book(1, "Génesis", "Gn", "AT", "Pentateuco", 50)
+   93:             
+   94:             val initialVerses = repository.getVerses(initialBook.id, lastChapter)
+   95:             val initialPericopas = repository.getPericopasForChapter(initialBook.id, lastChapter)
+   96:             val initialNotes = repository.getOfficialNotesForChapter(initialBook.id, lastChapter)
+   97:             val initialCompendioVerses = repository.getCompendioVersesForChapter(initialBook.id, lastChapter)
+   98: 
+   99:             _uiState.update {
+  100:                 it.copy(
+  101:                     isLoading = false,
+  102:                     books = allBooks,
+  103:                     currentBook = initialBook,
+  104:                     currentChapter = lastChapter,
+  105:                     verses = initialVerses,
+  106:                     chapterPericopas = initialPericopas,
+  107:                     chapterOfficialNotes = initialNotes,
+  108:                     chapterCompendioVerses = initialCompendioVerses
+  109:                 )
+  110:             }
+  111:         }
+  112:     }
+  113: 
+  114:     fun selectChapter(bookId: Int, chapter: Int) {
+  115:         viewModelScope.launch {
+  116:             val book = _uiState.value.books.find { it.id == bookId } ?: return@launch
+  117:             val validChapter = chapter.coerceIn(1, book.chaptersCount)
+  118:             val versesList = repository.getVerses(book.id, validChapter)
+  119:             val pericopasMap = repository.getPericopasForChapter(book.id, validChapter)
+  120:             val notesMap = repository.getOfficialNotesForChapter(book.id, validChapter)
+  121:             val compendioVerses = repository.getCompendioVersesForChapter(book.id, validChapter)
+  122: 
+  123:             _uiState.update {
+  124:                 it.copy(
+  125:                     currentBook = book,
+  126:                     currentChapter = validChapter,
+  127:                     verses = versesList,
+  128:                     chapterPericopas = pericopasMap,
+  129:                     chapterOfficialNotes = notesMap,
+  130:                     chapterCompendioVerses = compendioVerses,
+  131:                     selectedVerse = null,
+  132:                     showBookSelector = false
+  133:                 )
+  134:             }
+  135:             repository.saveLastPosition(book.id, validChapter, 1)
+  136:         }
+  137:     }
+  138: 
+  139:     fun nextChapter() {
+  140:         val current = _uiState.value.currentBook ?: return
+  141:         val currentCap = _uiState.value.currentChapter
+  142: 
+  143:         if (currentCap < current.chaptersCount) {
+  144:             selectChapter(current.id, currentCap + 1)
+  145:         } else {
+  146:             // Siguiente libro si no es el último (Apocalipsis)
+  147:             val currentIndex = _uiState.value.books.indexOfFirst { it.id == current.id }
+  148:             if (currentIndex in 0 until _uiState.value.books.size - 1) {
+  149:                 val nextBook = _uiState.value.books[currentIndex + 1]
+  150:                 selectChapter(nextBook.id, 1)
+  151:             }
+  152:         }
+  153:     }
+  154: 
+  155:     fun previousChapter() {
+  156:         val current = _uiState.value.currentBook ?: return
+  157:         val currentCap = _uiState.value.currentChapter
+  158: 
+  159:         if (currentCap > 1) {
+  160:             selectChapter(current.id, currentCap - 1)
+  161:         } else {
+  162:             // Libro anterior si no es el primero (Génesis)
+  163:             val currentIndex = _uiState.value.books.indexOfFirst { it.id == current.id }
+  164:             if (currentIndex > 0) {
+  165:                 val prevBook = _uiState.value.books[currentIndex - 1]
+  166:                 selectChapter(prevBook.id, prevBook.chaptersCount)
+  167:             }
+  168:         }
+  169:     }
+  170: 
+  171:     fun toggleVerseSelection(verse: Verse) {
+  172:         _uiState.update {
+  173:             it.copy(selectedVerse = if (it.selectedVerse?.id == verse.id) null else verse)
+  174:         }
+  175:     }
+  176: 
+  177:     fun clearSelection() {
+  178:         _uiState.update { it.copy(selectedVerse = null) }
+  179:     }
+  180: 
+  181:     fun setHighlight(color: String?) {
+  182:         val selected = _uiState.value.selectedVerse ?: return
+  183:         viewModelScope.launch {
+  184:             repository.setHighlight(selected.bookId, selected.chapter, selected.verse, color)
+  185:             val updatedVerses = repository.getVerses(selected.bookId, selected.chapter)
+  186:             _uiState.update { it.copy(verses = updatedVerses, selectedVerse = null) }
+  187:         }
+  188:     }
+  189: 
+  190:     fun saveNote(note: String) {
+  191:         val selected = _uiState.value.selectedVerse ?: return
+  192:         viewModelScope.launch {
+  193:             repository.saveNote(selected.bookId, selected.chapter, selected.verse, note)
+  194:             val updatedVerses = repository.getVerses(selected.bookId, selected.chapter)
+  195:             _uiState.update { it.copy(verses = updatedVerses, selectedVerse = null, showNoteDialog = false) }
+  196:         }
+  197:     }
+  198: 
+  199:     fun updateFontSize(newSizeSp: Float) {
+  200:         val current = _uiState.value.settings
+  201:         repository.updateSettings(current.copy(fontSizeSp = newSizeSp.coerceIn(12f, 32f)))
+  202:     }
+  203: 
+  204:     fun updateTheme(theme: ReadingTheme) {
+  205:         val current = _uiState.value.settings
+  206:         repository.updateSettings(current.copy(theme = theme))
+  207:     }
+  208: 
+  209:     fun toggleFontFamily(isSerif: Boolean) {
+  210:         val current = _uiState.value.settings
+  211:         repository.updateSettings(current.copy(isSerif = isSerif))
+  212:     }
+  213: 
+  214:     fun toggleViewMode(isVerseByVerse: Boolean) {
+  215:         val current = _uiState.value.settings
+  216:         repository.updateSettings(current.copy(isVerseByVerse = isVerseByVerse))
+  217:     }
+  218: 
+  219:     fun search(query: String) {
+  220:         _uiState.update { it.copy(searchQuery = query, isSearching = true) }
+  221:         viewModelScope.launch {
+  222:             val results = repository.searchVerses(query)
+  223:             _uiState.update { it.copy(searchResults = results, isSearching = false) }
+  224:         }
+  225:     }
+  226: 
+  227:     fun setShowBookSelector(show: Boolean) {
+  228:         _uiState.update { it.copy(showBookSelector = show) }
+  229:     }
+  230: 
+  231:     fun setShowSettingsSheet(show: Boolean) {
+  232:         _uiState.update { it.copy(showSettingsSheet = show) }
+  233:     }
+  234: 
+  235:     fun setShowNoteDialog(show: Boolean) {
+  236:         _uiState.update { it.copy(showNoteDialog = show) }
+  237:     }
+  238: 
+  239:     fun setShowSearchDialog(show: Boolean) {
+  240:         _uiState.update { it.copy(showSearchDialog = show, searchQuery = "", searchResults = emptyList()) }
+  241:     }
+  242: 
+  243:     fun openDictionary(initialQuery: String? = null) {
+  244:         _uiState.update {
+  245:             it.copy(
+  246:                 showDictionaryDialog = true,
+  247:                 dictionarySearchQuery = initialQuery ?: "",
+  248:                 selectedDictionaryEntry = null,
+  249:                 dictionaryVerseCitation = null,
+  250:                 dictionaryVerseMatches = emptyList(),
+  251:                 selectedDictionaryLetter = if (initialQuery.isNullOrBlank()) (_uiState.value.selectedDictionaryLetter ?: "A") else null,
+  252:                 isDictionaryLoading = true
+  253:             )
+  254:         }
+  255:         viewModelScope.launch {
+  256:             val letters = if (_uiState.value.dictionaryLetters.isEmpty()) {
+  257:                 repository.getDictionaryLetters()
+  258:             } else {
+  259:                 _uiState.value.dictionaryLetters
+  260:             }
+  261: 
+  262:             val entries = if (!initialQuery.isNullOrBlank()) {
+  263:                 repository.getDictionaryEntries(query = initialQuery)
+  264:             } else {
+  265:                 val letterToUse = _uiState.value.selectedDictionaryLetter ?: "A"
+  266:                 repository.getDictionaryEntries(letter = letterToUse)
+  267:             }
+  268: 
+  269:             _uiState.update {
+  270:                 it.copy(
+  271:                     dictionaryLetters = letters,
+  272:                     dictionaryEntries = entries,
+  273:                     isDictionaryLoading = false
+  274:                 )
+  275:             }
+  276:         }
+  277:     }
+  278: 
+  279:     fun closeDictionary() {
+  280:         _uiState.update {
+  281:             it.copy(
+  282:                 showDictionaryDialog = false,
+  283:                 selectedDictionaryEntry = null,
+  284:                 dictionaryVerseCitation = null,
+  285:                 dictionaryVerseMatches = emptyList()
+  286:             )
+  287:         }
+  288:     }
+  289: 
+  290:     fun selectDictionaryLetter(letter: String?) {
+  291:         _uiState.update {
+  292:             it.copy(
+  293:                 selectedDictionaryLetter = letter,
+  294:                 dictionarySearchQuery = "",
+  295:                 isDictionaryLoading = true
+  296:             )
+  297:         }
+  298:         viewModelScope.launch {
+  299:             val entries = if (letter == null) {
+  300:                 if (_uiState.value.dictionaryVerseMatches.isNotEmpty()) {
+  301:                     _uiState.value.dictionaryVerseMatches
+  302:                 } else {
+  303:                     repository.getDictionaryEntries(letter = "A")
+  304:                 }
+  305:             } else {
+  306:                 repository.getDictionaryEntries(letter = letter)
+  307:             }
+  308:             _uiState.update {
+  309:                 it.copy(
+  310:                     dictionaryEntries = entries,
+  311:                     isDictionaryLoading = false
+  312:                 )
+  313:             }
+  314:         }
+  315:     }
+  316: 
+  317:     fun searchDictionary(query: String) {
+  318:         _uiState.update {
+  319:             it.copy(
+  320:                 dictionarySearchQuery = query,
+  321:                 isDictionaryLoading = true
+  322:             )
+  323:         }
+  324:         viewModelScope.launch {
+  325:             val entries = if (query.trim().isEmpty()) {
+  326:                 if (_uiState.value.selectedDictionaryLetter == null && _uiState.value.dictionaryVerseMatches.isNotEmpty()) {
+  327:                     _uiState.value.dictionaryVerseMatches
+  328:                 } else {
+  329:                     val letter = _uiState.value.selectedDictionaryLetter ?: "A"
+  330:                     repository.getDictionaryEntries(letter = letter)
+  331:                 }
+  332:             } else {
+  333:                 repository.getDictionaryEntries(query = query)
+  334:             }
+  335:             _uiState.update {
+  336:                 it.copy(
+  337:                     dictionaryEntries = entries,
+  338:                     isDictionaryLoading = false
+  339:                 )
+  340:             }
+  341:         }
+  342:     }
+  343: 
+  344:     fun selectDictionaryEntry(entry: DictionaryEntry?) {
+  345:         _uiState.update { it.copy(selectedDictionaryEntry = entry) }
+  346:     }
+  347: 
+  348:     fun openDictionaryForVerse(verse: Verse) {
+  349:         val citation = "${_uiState.value.currentBook?.name ?: ""} ${verse.chapter}:${verse.verse}".trim()
+  350:         val rawWords = verse.text.split(Regex("[^a-zA-ZáéíóúÁÉÍÓÚñÑ]+")).filter { it.length >= 3 }
+  351:         _uiState.update {
+  352:             it.copy(
+  353:                 showDictionaryDialog = true,
+  354:                 dictionaryVerseCitation = citation,
+  355:                 selectedDictionaryLetter = null,
+  356:                 dictionarySearchQuery = "",
+  357:                 selectedDictionaryEntry = null,
+  358:                 isDictionaryLoading = true
+  359:             )
+  360:         }
+  361:         viewModelScope.launch {
+  362:             val letters = if (_uiState.value.dictionaryLetters.isEmpty()) {
+  363:                 repository.getDictionaryLetters()
+  364:             } else {
+  365:                 _uiState.value.dictionaryLetters
+  366:             }
+  367: 
+  368:             val matches = repository.getDictionaryEntriesForWords(rawWords)
+  369:             val entries = if (matches.isNotEmpty()) matches else repository.getDictionaryEntries(letter = "A")
+  370: 
+  371:             _uiState.update {
+  372:                 it.copy(
+  373:                     dictionaryLetters = letters,
+  374:                     dictionaryEntries = entries,
+  375:                     dictionaryVerseMatches = matches,
+  376:                     isDictionaryLoading = false
+  377:                 )
+  378:             }
+  379:         }
+  380:     }
+  381: 
+  382:     // ==========================================
+  383:     // REFERENCIAS CRUZADAS
+  384:     // ==========================================
+  385: 
+  386:     fun openCrossReferencesForVerse(verse: Verse) {
+  387:         val book = _uiState.value.currentBook ?: return
+  388:         _uiState.update {
+  389:             it.copy(
+  390:                 showCrossReferencesDialog = true,
+  391:                 crossReferenceVerse = verse,
+  392:                 isLoadingCrossReferences = true,
+  393:                 currentOfficialNote = null,
+  394:                 currentResolvedOfficialRefs = emptyList(),
+  395:                 currentTskReferences = emptyList(),
+  396:                 currentPericopaForVerse = null
+  397:             )
+  398:         }
+  399:         viewModelScope.launch {
+  400:             val officialNote = repository.getOfficialNoteForVerse(book.id, verse.chapter, verse.verse)
+  401:             val resolvedRefs = if (!officialNote.isNullOrBlank()) {
+  402:                 repository.parseAndResolveOfficialNote(officialNote)
+  403:             } else {
+  404:                 emptyList()
+  405:             }
+  406:             val pericopa = repository.getPericopaForVerse(book.id, verse.chapter, verse.verse)
+  407:             val tskRefs = repository.getTskReferencesForVerse(book.id, verse.chapter, verse.verse, limit = 15)
+  408: 
+  409:             _uiState.update {
+  410:                 it.copy(
+  411:                     currentOfficialNote = officialNote,
+  412:                     currentResolvedOfficialRefs = resolvedRefs,
+  413:                     currentTskReferences = tskRefs,
+  414:                     currentPericopaForVerse = pericopa,
+  415:                     isLoadingCrossReferences = false
+  416:                 )
+  417:             }
+  418:         }
+  419:     }
+  420: 
+  421:     fun closeCrossReferences() {
+  422:         _uiState.update {
+  423:             it.copy(
+  424:                 showCrossReferencesDialog = false,
+  425:                 crossReferenceVerse = null,
+  426:                 currentOfficialNote = null,
+  427:                 currentResolvedOfficialRefs = emptyList(),
+  428:                 currentTskReferences = emptyList(),
+  429:                 currentPericopaForVerse = null,
+  430:                 isLoadingCrossReferences = false
+  431:             )
+  432:         }
+  433:     }
+  434: 
+  435:     fun navigateToPassage(bookId: Int, chapter: Int, verse: Int) {
+  436:         closeCrossReferences()
+  437:         closeDictionary()
+  438:         clearSelection()
+  439:         selectChapter(bookId, chapter)
+  440:     }
+  441: 
+  442:     // ==========================================
+  443:     // COMPENDIO DOCTRINAL IDMJI
+  444:     // ==========================================
+  445: 
+  446:     fun openCompendioForVerse(verse: Verse) {
+  447:         val book = _uiState.value.currentBook ?: return
+  448:         _uiState.update {
+  449:             it.copy(
+  450:                 showVerseCompendioDialog = true,
+  451:                 verseCompendioTargetVerse = verse,
+  452:                 isCompendioLoading = true,
+  453:                 verseCompendioItems = emptyList()
+  454:             )
+  455:         }
+  456:         viewModelScope.launch {
+  457:             val items = repository.getCompendioForVerse(book.id, verse.chapter, verse.verse)
+  458:             _uiState.update {
+  459:                 it.copy(
+  460:                     verseCompendioItems = items,
+  461:                     isCompendioLoading = false
+  462:                 )
+  463:             }
+  464:         }
+  465:     }
+  466: 
+  467:     fun closeVerseCompendio() {
+  468:         _uiState.update {
+  469:             it.copy(
+  470:                 showVerseCompendioDialog = false,
+  471:                 verseCompendioTargetVerse = null,
+  472:                 verseCompendioItems = emptyList(),
+  473:                 isCompendioLoading = false
+  474:             )
+  475:         }
+  476:     }
+  477: 
+  478:     fun openGeneralCompendio() {
+  479:         _uiState.update {
+  480:             it.copy(
+  481:                 showGeneralCompendioDialog = true,
+  482:                 isCompendioLoading = true,
+  483:                 compendioSelectedBook = null,
+  484:                 compendioBookTeachings = emptyList(),
+  485:                 compendioSearchQuery = "",
+  486:                 compendioSearchResults = emptyList(),
+  487:                 selectedCompendioItem = null
+  488:             )
+  489:         }
+  490:         viewModelScope.launch {
+  491:             val booksWithCounts = repository.getCanonicalBooksWithCompendio()
+  492:             val thematicList = repository.getThematicCompendio()
+  493:             _uiState.update {
+  494:                 it.copy(
+  495:                     compendioBooksWithCounts = booksWithCounts,
+  496:                     compendioThematicTeachings = thematicList,
+  497:                     isCompendioLoading = false
+  498:                 )
+  499:             }
+  500:         }
+  501:     }
+  502: 
+  503:     fun closeGeneralCompendio() {
+  504:         _uiState.update {
+  505:             it.copy(
+  506:                 showGeneralCompendioDialog = false,
+  507:                 compendioSelectedBook = null,
+  508:                 compendioBookTeachings = emptyList(),
+  509:                 selectedCompendioItem = null,
+  510:                 compendioSearchQuery = "",
+  511:                 compendioSearchResults = emptyList()
+  512:             )
+  513:         }
+  514:     }
+  515: 
+  516:     fun selectCompendioBook(book: Book?) {
+  517:         if (book == null) {
+  518:             _uiState.update {
+  519:                 it.copy(
+  520:                     compendioSelectedBook = null,
+  521:                     compendioBookTeachings = emptyList()
+  522:                 )
+  523:             }
+  524:             return
+  525:         }
+  526:         _uiState.update {
+  527:             it.copy(
+  528:                 compendioSelectedBook = book,
+  529:                 isCompendioLoading = true
+  530:             )
+  531:         }
+  532:         viewModelScope.launch {
+  533:             val teachings = repository.getCompendioForBook(book.id)
+  534:             _uiState.update {
+  535:                 it.copy(
+  536:                     compendioBookTeachings = teachings,
+  537:                     isCompendioLoading = false
+  538:                 )
+  539:             }
+  540:         }
+  541:     }
+  542: 
+  543:     fun searchCompendio(query: String) {
+  544:         _uiState.update { it.copy(compendioSearchQuery = query) }
+  545:         if (query.trim().length < 2) {
+  546:             _uiState.update { it.copy(compendioSearchResults = emptyList()) }
+  547:             return
+  548:         }
+  549:         viewModelScope.launch {
+  550:             val results = repository.searchCompendioGlobal(query.trim())
+  551:             _uiState.update { it.copy(compendioSearchResults = results) }
+  552:         }
+  553:     }
+  554: 
+  555:     fun selectCompendioItem(item: CompendioItem?) {
+  556:         if (item == null) {
+  557:             _uiState.update { it.copy(selectedCompendioItem = null) }
+  558:             return
+  559:         }
+  560:         if (item.transcripcion.isNotBlank()) {
+  561:             _uiState.update { it.copy(selectedCompendioItem = item) }
+  562:             return
+  563:         }
+  564:         viewModelScope.launch {
+  565:             val detailedItem = repository.getCompendioItemDetail(item.id) ?: item
+  566:             _uiState.update { it.copy(selectedCompendioItem = detailedItem) }
+  567:         }
+  568:     }
+  569: 
+  570:     fun navigateToCompendioPassage(bookId: Int, chapter: Int, verse: Int) {
+  571:         closeVerseCompendio()
+  572:         closeGeneralCompendio()
+  573:         closeCrossReferences()
+  574:         closeDictionary()
+  575:         clearSelection()
+  576:         selectChapter(bookId, chapter)
+  577:     }
+  578: }
+
+ARCHIVO: app/src/main/kotlin/org/idmji/biblia/ui/components/CompendioDialog.kt
+SHA256: a161c807c8d17bc20316c3f1acf5c2522a38acb2b4676d07f9caaa29b059ab0e
+    1: package org.idmji.biblia.ui.components
+    2: 
+    3: import android.content.ClipData
+    4: import android.content.ClipboardManager
+    5: import android.content.Context
+    6: import android.content.Intent
+    7: import android.net.Uri
+    8: import android.widget.Toast
+    9: import androidx.compose.foundation.BorderStroke
+   10: import androidx.compose.foundation.background
+   11: import androidx.compose.foundation.border
+   12: import androidx.compose.foundation.clickable
+   13: import androidx.compose.foundation.layout.Arrangement
+   14: import androidx.compose.foundation.layout.Box
+   15: import androidx.compose.foundation.layout.Column
+   16: import androidx.compose.foundation.layout.PaddingValues
+   17: import androidx.compose.foundation.layout.Row
+   18: import androidx.compose.foundation.layout.Spacer
+   19: import androidx.compose.foundation.layout.fillMaxHeight
+   20: import androidx.compose.foundation.layout.fillMaxSize
+   21: import androidx.compose.foundation.layout.fillMaxWidth
+   22: import androidx.compose.foundation.layout.height
+   23: import androidx.compose.foundation.layout.padding
+   24: import androidx.compose.foundation.layout.size
+   25: import androidx.compose.foundation.layout.width
+   26: import androidx.compose.foundation.lazy.LazyColumn
+   27: import androidx.compose.foundation.lazy.grid.GridCells
+   28: import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+   29: import androidx.compose.foundation.lazy.grid.items
+   30: import androidx.compose.foundation.lazy.items
+   31: import androidx.compose.foundation.rememberScrollState
+   32: import androidx.compose.foundation.shape.CircleShape
+   33: import androidx.compose.foundation.shape.RoundedCornerShape
+   34: import androidx.compose.foundation.verticalScroll
+   35: import androidx.compose.material.icons.Icons
+   36: import androidx.compose.material.icons.automirrored.filled.ArrowBack
+   37: import androidx.compose.material.icons.automirrored.filled.ArrowForward
+   38: import androidx.compose.material.icons.automirrored.filled.MenuBook
+   39: import androidx.compose.material.icons.filled.Close
+   40: import androidx.compose.material.icons.filled.ContentCopy
+   41: import androidx.compose.material.icons.filled.PlayArrow
+   42: import androidx.compose.material.icons.filled.Search
+   43: import androidx.compose.material3.ButtonDefaults
+   44: import androidx.compose.material3.Card
+   45: import androidx.compose.material3.CardDefaults
+   46: import androidx.compose.material3.CircularProgressIndicator
+   47: import androidx.compose.material3.FilledTonalButton
+   48: import androidx.compose.material3.Icon
+   49: import androidx.compose.material3.IconButton
+   50: import androidx.compose.material3.MaterialTheme
+   51: import androidx.compose.material3.OutlinedButton
+   52: import androidx.compose.material3.OutlinedTextField
+   53: import androidx.compose.material3.OutlinedTextFieldDefaults
+   54: import androidx.compose.material3.Tab
+   55: import androidx.compose.material3.TabRow
+   56: import androidx.compose.material3.TabRowDefaults
+   57: import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+   58: import androidx.compose.material3.Text
+   59: import androidx.compose.runtime.Composable
+   60: import androidx.compose.runtime.getValue
+   61: import androidx.compose.runtime.mutableFloatStateOf
+   62: import androidx.compose.runtime.mutableIntStateOf
+   63: import androidx.compose.runtime.remember
+   64: import androidx.compose.runtime.setValue
+   65: import androidx.compose.ui.Alignment
+   66: import androidx.compose.ui.Modifier
+   67: import androidx.compose.ui.draw.clip
+   68: import androidx.compose.ui.graphics.Color
+   69: import androidx.compose.ui.platform.LocalContext
+   70: import androidx.compose.ui.text.font.FontStyle
+   71: import androidx.compose.ui.text.font.FontWeight
+   72: import androidx.compose.ui.text.style.TextOverflow
+   73: import androidx.compose.ui.unit.dp
+   74: import androidx.compose.ui.unit.sp
+   75: import androidx.compose.ui.window.Dialog
+   76: import androidx.compose.ui.window.DialogProperties
+   77: import org.idmji.biblia.model.Book
+   78: import org.idmji.biblia.model.CompendioItem
+   79: import org.idmji.biblia.model.Verse
+   80: import org.idmji.biblia.ui.theme.IdmjiGold
+   81: import org.idmji.biblia.ui.theme.IdmjiGoldDark
+   82: import org.idmji.biblia.ui.theme.IdmjiNavyLight
+   83: import org.idmji.biblia.ui.theme.IdmjiPrimaryNavy
+   84: 
+   85: private fun openOfficialVideo(context: Context, url: String) {
+   86:     if (url.isBlank()) {
+   87:         Toast.makeText(context, "Enlace de video no disponible", Toast.LENGTH_SHORT).show()
+   88:         return
+   89:     }
+   90:     try {
+   91:         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+   92:         context.startActivity(intent)
+   93:     } catch (_: Exception) {
+   94:         Toast.makeText(context, "No se pudo abrir el reproductor de video", Toast.LENGTH_SHORT).show()
+   95:     }
+   96: }
+   97: 
+   98: private fun formatSectionLabel(seccion: String): String {
+   99:     return when (seccion) {
+  100:         "preguntas_y_respuestas" -> "Preguntas y Respuestas"
+  101:         "estudios_biblicos" -> "Estudio Bíblico"
+  102:         "meditaciones" -> "Meditación"
+  103:         "transmisiones_en_vivo" -> "Enseñanza en Vivo"
+  104:         "testimonios" -> "Testimonios"
+  105:         "alabanzas" -> "Alabanzas"
+  106:         "himnos" -> "Himnos"
+  107:         else -> if (seccion.isNotBlank()) seccion.replace("_", " ").replaceFirstChar { it.uppercase() } else "Enseñanza Oficial"
+  108:     }
+  109: }
+  110: 
+  111: // =========================================================================
+  112: // 1. DIÁLOGO CONTEXTUAL DE VERSÍCULO (ESTUDIOS IDMJI PARA ESTE VERSÍCULO)
+  113: // =========================================================================
+  114: 
+  115: @Composable
+  116: fun VerseCompendioDialog(
+  117:     book: Book?,
+  118:     verse: Verse?,
+  119:     items: List<CompendioItem>,
+  120:     isLoading: Boolean,
+  121:     onOpenGeneralCompendio: () -> Unit,
+  122:     onSelectDetailItem: (CompendioItem) -> Unit,
+  123:     onDismiss: () -> Unit
+  124: ) {
+  125:     if (verse == null) return
+  126:     val context = LocalContext.current
+  127:     val citation = "${book?.name ?: ""} ${verse.chapter}:${verse.verse}"
+  128: 
+  129:     Dialog(
+  130:         onDismissRequest = onDismiss,
+  131:         properties = DialogProperties(usePlatformDefaultWidth = false)
+  132:     ) {
+  133:         Card(
+  134:             modifier = Modifier
+  135:                 .fillMaxWidth(0.96f)
+  136:                 .fillMaxHeight(0.85f),
+  137:             shape = RoundedCornerShape(20.dp),
+  138:             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+  139:             elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+  140:         ) {
+  141:             Column(modifier = Modifier.fillMaxSize()) {
+  142:                 // Header
+  143:                 Box(
+  144:                     modifier = Modifier
+  145:                         .fillMaxWidth()
+  146:                         .background(IdmjiPrimaryNavy)
+  147:                         .padding(horizontal = 16.dp, vertical = 12.dp)
+  148:                 ) {
+  149:                     Row(
+  150:                         modifier = Modifier.fillMaxWidth(),
+  151:                         verticalAlignment = Alignment.CenterVertically,
+  152:                         horizontalArrangement = Arrangement.SpaceBetween
+  153:                     ) {
+  154:                         Row(verticalAlignment = Alignment.CenterVertically) {
+  155:                             Text(
+  156:                                 text = "🕊️",
+  157:                                 fontSize = 20.sp,
+  158:                                 modifier = Modifier.padding(end = 8.dp)
+  159:                             )
+  160:                             Column {
+  161:                                 Text(
+  162:                                     text = "Estudios Doctrinales IDMJI",
+  163:                                     fontWeight = FontWeight.Bold,
+  164:                                     fontSize = 17.sp,
+  165:                                     color = IdmjiGold
+  166:                                 )
+  167:                                 Text(
+  168:                                     text = citation,
+  169:                                     fontSize = 13.sp,
+  170:                                     fontWeight = FontWeight.Medium,
+  171:                                     color = Color.White.copy(alpha = 0.9f)
+  172:                                 )
+  173:                             }
+  174:                         }
+  175:                         IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+  176:                             Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+  177:                         }
+  178:                     }
+  179:                 }
+  180: 
+  181:                 // Cita del versículo en tarjeta sepia suave
+  182:                 Card(
+  183:                     modifier = Modifier
+  184:                         .fillMaxWidth()
+  185:                         .padding(horizontal = 14.dp, vertical = 10.dp),
+  186:                     shape = RoundedCornerShape(12.dp),
+  187:                     colors = CardDefaults.cardColors(containerColor = IdmjiGold.copy(alpha = 0.08f)),
+  188:                     border = BorderStroke(1.dp, IdmjiGold.copy(alpha = 0.25f))
+  189:                 ) {
+  190:                     Column(modifier = Modifier.padding(10.dp)) {
+  191:                         Text(
+  192:                             text = "\"${verse.text}\"",
+  193:                             fontStyle = FontStyle.Italic,
+  194:                             fontSize = 14.sp,
+  195:                             color = MaterialTheme.colorScheme.onSurface,
+  196:                             lineHeight = 20.sp
+  197:                         )
+  198:                         Spacer(modifier = Modifier.height(4.dp))
+  199:                         Text(
+  200:                             text = "— $citation (RVR1960)",
+  201:                             fontSize = 11.sp,
+  202:                             fontWeight = FontWeight.Bold,
+  203:                             color = IdmjiGoldDark,
+  204:                             modifier = Modifier.align(Alignment.End)
+  205:                         )
+  206:                     }
+  207:                 }
+  208: 
+  209:                 // Contenido
+  210:                 if (isLoading) {
+  211:                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+  212:                         CircularProgressIndicator(color = IdmjiGold)
+  213:                     }
+  214:                 } else if (items.isEmpty()) {
+  215:                     Box(
+  216:                         modifier = Modifier
+  217:                             .fillMaxSize()
+  218:                             .padding(24.dp),
+  219:                         contentAlignment = Alignment.Center
+  220:                     ) {
+  221:                         Column(
+  222:                             horizontalAlignment = Alignment.CenterHorizontally,
+  223:                             verticalArrangement = Arrangement.spacedBy(16.dp)
+  224:                         ) {
+  225:                             Text("🕊️", fontSize = 48.sp)
+  226:                             Text(
+  227:                                 text = "No hay un estudio específico registrado para este versículo directo.",
+  228:                                 fontSize = 14.sp,
+  229:                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+  230:                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
+  231:                             )
+  232:                             FilledTonalButton(
+  233:                                 onClick = {
+  234:                                     onDismiss()
+  235:                                     onOpenGeneralCompendio()
+  236:                                 },
+  237:                                 colors = ButtonDefaults.filledTonalButtonColors(containerColor = IdmjiPrimaryNavy)
+  238:                             ) {
+  239:                                 Text("Explorar Doctrina IDMJI", color = Color.White, fontSize = 13.sp)
+  240:                             }
+  241:                         }
+  242:                     }
+  243:                 } else {
+  244:                     LazyColumn(
+  245:                         modifier = Modifier
+  246:                             .fillMaxSize()
+  247:                             .padding(horizontal = 14.dp),
+  248:                         contentPadding = PaddingValues(bottom = 16.dp),
+  249:                         verticalArrangement = Arrangement.spacedBy(12.dp)
+  250:                     ) {
+  251:                         item {
+  252:                             Text(
+  253:                                 text = "Enseñanzas oficiales de este pasaje (${items.size}):",
+  254:                                 fontSize = 13.sp,
+  255:                                 fontWeight = FontWeight.SemiBold,
+  256:                                 color = IdmjiPrimaryNavy,
+  257:                                 modifier = Modifier.padding(top = 4.dp)
+  258:                             )
+  259:                         }
+  260: 
+  261:                         items(items) { item ->
+  262:                             CompendioItemCard(
+  263:                                 item = item,
+  264:                                 onOpenVideo = { openOfficialVideo(context, item.videoUrl) },
+  265:                                 onReadTranscription = { onSelectDetailItem(item) }
+  266:                             )
+  267:                         }
+  268:                     }
+  269:                 }
+  270:             }
+  271:         }
+  272:     }
+  273: }
+  274: 
+  275: // =========================================================================
+  276: // 2. DIÁLOGO GENERAL DEL COMPENDIO DOCTRINAL IDMJI
+  277: // =========================================================================
+  278: 
+  279: @Composable
+  280: fun GeneralCompendioDialog(
+  281:     booksWithCounts: List<Pair<Book, Int>>,
+  282:     selectedBook: Book?,
+  283:     bookTeachings: List<CompendioItem>,
+  284:     thematicTeachings: List<CompendioItem>,
+  285:     searchQuery: String,
+  286:     searchResults: List<CompendioItem>,
+  287:     isLoading: Boolean,
+  288:     onSelectBook: (Book?) -> Unit,
+  289:     onSearchQueryChange: (String) -> Unit,
+  290:     onSelectDetailItem: (CompendioItem) -> Unit,
+  291:     onNavigateToPassage: (bookId: Int, chapter: Int, verse: Int) -> Unit,
+  292:     onDismiss: () -> Unit
+  293: ) {
+  294:     val context = LocalContext.current
+  295:     var selectedTab by remember { mutableIntStateOf(0) }
+  296: 
+  297:     Dialog(
+  298:         onDismissRequest = onDismiss,
+  299:         properties = DialogProperties(usePlatformDefaultWidth = false)
+  300:     ) {
+  301:         Card(
+  302:             modifier = Modifier
+  303:                 .fillMaxWidth(0.96f)
+  304:                 .fillMaxHeight(0.92f),
+  305:             shape = RoundedCornerShape(20.dp),
+  306:             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+  307:             elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+  308:         ) {
+  309:             Column(modifier = Modifier.fillMaxSize()) {
+  310:                 // Header Principal IDMJI
+  311:                 Box(
+  312:                     modifier = Modifier
+  313:                         .fillMaxWidth()
+  314:                         .background(IdmjiPrimaryNavy)
+  315:                         .padding(horizontal = 16.dp, vertical = 12.dp)
+  316:                 ) {
+  317:                     Row(
+  318:                         modifier = Modifier.fillMaxWidth(),
+  319:                         verticalAlignment = Alignment.CenterVertically,
+  320:                         horizontalArrangement = Arrangement.SpaceBetween
+  321:                     ) {
+  322:                         Row(verticalAlignment = Alignment.CenterVertically) {
+  323:                             Text("🕊️", fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
+  324:                             Column {
+  325:                                 Text(
+  326:                                     text = "Doctrina IDMJI",
+  327:                                     fontWeight = FontWeight.Bold,
+  328:                                     fontSize = 17.sp,
+  329:                                     color = IdmjiGold
+  330:                                 )
+  331:                                 Text(
+  332:                                     text = "Enseñanzas y Estudios — Hna. María Luisa Piraquive",
+  333:                                     fontSize = 11.sp,
+  334:                                     color = Color.White.copy(alpha = 0.85f)
+  335:                                 )
+  336:                             }
+  337:                         }
+  338:                         IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+  339:                             Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+  340:                         }
+  341:                     }
+  342:                 }
+  343: 
+  344:                 // Buscador en tiempo real
+  345:                 OutlinedTextField(
+  346:                     value = searchQuery,
+  347:                     onValueChange = onSearchQueryChange,
+  348:                     modifier = Modifier
+  349:                         .fillMaxWidth()
+  350:                         .padding(horizontal = 14.dp, vertical = 8.dp),
+  351:                     placeholder = { Text("Buscar en la Doctrina IDMJI...", fontSize = 13.sp) },
+  352:                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar", tint = IdmjiPrimaryNavy) },
+  353:                     trailingIcon = {
+  354:                         if (searchQuery.isNotEmpty()) {
+  355:                             IconButton(onClick = { onSearchQueryChange("") }) {
+  356:                                 Icon(Icons.Default.Close, contentDescription = "Limpiar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+  357:                             }
+  358:                         }
+  359:                     },
+  360:                     singleLine = true,
+  361:                     shape = RoundedCornerShape(12.dp),
+  362:                     colors = OutlinedTextFieldDefaults.colors(
+  363:                         focusedBorderColor = IdmjiGold,
+  364:                         unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+  365:                     )
+  366:                 )
+  367: 
+  368:                 if (searchQuery.trim().length >= 2) {
+  369:                     // Resultados de búsqueda
+  370:                     if (isLoading) {
+  371:                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+  372:                             CircularProgressIndicator(color = IdmjiGold)
+  373:                         }
+  374:                     } else if (searchResults.isEmpty()) {
+  375:                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+  376:                             Text(
+  377:                                 text = "No se encontraron coincidencias para \"$searchQuery\"",
+  378:                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+  379:                                 fontSize = 14.sp
+  380:                             )
+  381:                         }
+  382:                     } else {
+  383:                         LazyColumn(
+  384:                             modifier = Modifier
+  385:                                 .fillMaxSize()
+  386:                                 .padding(horizontal = 14.dp),
+  387:                             contentPadding = PaddingValues(bottom = 16.dp),
+  388:                             verticalArrangement = Arrangement.spacedBy(10.dp)
+  389:                         ) {
+  390:                             item {
+  391:                                 Text(
+  392:                                     text = "Resultados encontrados (${searchResults.size}):",
+  393:                                     fontSize = 13.sp,
+  394:                                     fontWeight = FontWeight.SemiBold,
+  395:                                     color = IdmjiPrimaryNavy,
+  396:                                     modifier = Modifier.padding(top = 4.dp)
+  397:                                 )
+  398:                             }
+  399:                             items(searchResults) { item ->
+  400:                                 CompendioItemCard(
+  401:                                     item = item,
+  402:                                     onOpenVideo = { openOfficialVideo(context, item.videoUrl) },
+  403:                                     onReadTranscription = { onSelectDetailItem(item) },
+  404:                                     onNavigateToPassage = if (item.tipo == "CANONICO" && item.libroId != null && item.capitulo != null) {
+  405:                                         { onNavigateToPassage(item.libroId, item.capitulo, item.versiculoInicio ?: 1) }
+  406:                                     } else null
+  407:                                 )
+  408:                             }
+  409:                         }
+  410:                     }
+  411:                 } else {
+  412:                     // Pestañas de navegación
+  413:                     TabRow(
+  414:                         selectedTabIndex = selectedTab,
+  415:                         containerColor = MaterialTheme.colorScheme.surface,
+  416:                         contentColor = IdmjiPrimaryNavy,
+  417:                         indicator = { tabPositions ->
+  418:                             TabRowDefaults.SecondaryIndicator(
+  419:                                 Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+  420:                                 color = IdmjiGold,
+  421:                                 height = 3.dp
+  422:                             )
+  423:                         }
+  424:                     ) {
+  425:                         Tab(
+  426:                             selected = selectedTab == 0,
+  427:                             onClick = {
+  428:                                 selectedTab = 0
+  429:                                 onSelectBook(null)
+  430:                             },
+  431:                             text = {
+  432:                                 Text(
+  433:                                     "📖 Libros Bíblicos",
+  434:                                     fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+  435:                                     color = if (selectedTab == 0) IdmjiPrimaryNavy else MaterialTheme.colorScheme.onSurfaceVariant,
+  436:                                     fontSize = 13.sp
+  437:                                 )
+  438:                             }
+  439:                         )
+  440:                         Tab(
+  441:                             selected = selectedTab == 1,
+  442:                             onClick = {
+  443:                                 selectedTab = 1
+  444:                                 onSelectBook(null)
+  445:                             },
+  446:                             text = {
+  447:                                 Text(
+  448:                                     "🕊️ Temas Doctrinales",
+  449:                                     fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+  450:                                     color = if (selectedTab == 1) IdmjiPrimaryNavy else MaterialTheme.colorScheme.onSurfaceVariant,
+  451:                                     fontSize = 13.sp
+  452:                                 )
+  453:                             }
+  454:                         )
+  455:                     }
+  456: 
+  457:                     Spacer(modifier = Modifier.height(6.dp))
+  458: 
+  459:                     if (selectedTab == 0) {
+  460:                         // TAB 0: LIBROS BÍBLICOS
+  461:                         if (selectedBook == null) {
+  462:                             // Selector de Libros con cantidad de enseñanzas
+  463:                             LazyColumn(
+  464:                                 modifier = Modifier
+  465:                                     .fillMaxSize()
+  466:                                     .padding(horizontal = 14.dp),
+  467:                                 contentPadding = PaddingValues(bottom = 16.dp),
+  468:                                 verticalArrangement = Arrangement.spacedBy(8.dp)
+  469:                             ) {
+  470:                                 item {
+  471:                                     Text(
+  472:                                         text = "Seleccione un libro bíblico para ver sus enseñanzas grabadas:",
+  473:                                         fontSize = 12.sp,
+  474:                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+  475:                                         modifier = Modifier.padding(vertical = 4.dp)
+  476:                                     )
+  477:                                 }
+  478:                                 items(booksWithCounts) { (book, count) ->
+  479:                                     Card(
+  480:                                         onClick = { onSelectBook(book) },
+  481:                                         modifier = Modifier.fillMaxWidth(),
+  482:                                         shape = RoundedCornerShape(10.dp),
+  483:                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+  484:                                         border = BorderStroke(1.dp, IdmjiGold.copy(alpha = 0.2f))
+  485:                                     ) {
+  486:                                         Row(
+  487:                                             modifier = Modifier
+  488:                                                 .fillMaxWidth()
+  489:                                                 .padding(horizontal = 14.dp, vertical = 10.dp),
+  490:                                             verticalAlignment = Alignment.CenterVertically,
+  491:                                             horizontalArrangement = Arrangement.SpaceBetween
+  492:                                         ) {
+  493:                                             Row(verticalAlignment = Alignment.CenterVertically) {
+  494:                                                 Box(
+  495:                                                     modifier = Modifier
+  496:                                                         .size(28.dp)
+  497:                                                         .clip(CircleShape)
+  498:                                                         .background(if (book.testament == "AT") IdmjiPrimaryNavy else IdmjiNavyLight),
+  499:                                                     contentAlignment = Alignment.Center
+  500:                                                 ) {
+  501:                                                     Text(
+  502:                                                         text = book.testament,
+  503:                                                         fontSize = 10.sp,
+  504:                                                         fontWeight = FontWeight.Bold,
+  505:                                                         color = Color.White
+  506:                                                     )
+  507:                                                 }
+  508:                                                 Spacer(modifier = Modifier.width(10.dp))
+  509:                                                 Text(
+  510:                                                     text = book.name,
+  511:                                                     fontSize = 15.sp,
+  512:                                                     fontWeight = FontWeight.SemiBold,
+  513:                                                     color = MaterialTheme.colorScheme.onSurface
+  514:                                                 )
+  515:                                             }
+  516: 
+  517:                                             Row(verticalAlignment = Alignment.CenterVertically) {
+  518:                                                 Box(
+  519:                                                     modifier = Modifier
+  520:                                                         .clip(RoundedCornerShape(12.dp))
+  521:                                                         .background(IdmjiGold.copy(alpha = 0.18f))
+  522:                                                         .padding(horizontal = 10.dp, vertical = 4.dp)
+  523:                                                 ) {
+  524:                                                     Text(
+  525:                                                         text = "$count enseñanzas",
+  526:                                                         fontSize = 12.sp,
+  527:                                                         fontWeight = FontWeight.Bold,
+  528:                                                         color = IdmjiGoldDark
+  529:                                                     )
+  530:                                                 }
+  531:                                                 Spacer(modifier = Modifier.width(6.dp))
+  532:                                                 Icon(
+  533:                                                     Icons.AutoMirrored.Filled.ArrowForward,
+  534:                                                     contentDescription = null,
+  535:                                                     modifier = Modifier.size(16.dp),
+  536:                                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
+  537:                                                 )
+  538:                                             }
+  539:                                         }
+  540:                                     }
+  541:                                 }
+  542:                             }
+  543:                         } else {
+  544:                             // Lista de enseñanzas del libro seleccionado
+  545:                             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
+  546:                                 Row(
+  547:                                     modifier = Modifier
+  548:                                         .fillMaxWidth()
+  549:                                         .padding(vertical = 6.dp),
+  550:                                     verticalAlignment = Alignment.CenterVertically
+  551:                                 ) {
+  552:                                     OutlinedButton(
+  553:                                         onClick = { onSelectBook(null) },
+  554:                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+  555:                                         shape = RoundedCornerShape(8.dp)
+  556:                                     ) {
+  557:                                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", modifier = Modifier.size(14.dp))
+  558:                                         Spacer(modifier = Modifier.width(4.dp))
+  559:                                         Text("Libros", fontSize = 12.sp)
+  560:                                     }
+  561:                                     Spacer(modifier = Modifier.width(10.dp))
+  562:                                     Text(
+  563:                                         text = "${selectedBook.name} (${bookTeachings.size})",
+  564:                                         fontWeight = FontWeight.Bold,
+  565:                                         fontSize = 16.sp,
+  566:                                         color = IdmjiPrimaryNavy
+  567:                                     )
+  568:                                 }
+  569: 
+  570:                                 if (isLoading) {
+  571:                                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+  572:                                         CircularProgressIndicator(color = IdmjiGold)
+  573:                                     }
+  574:                                 } else {
+  575:                                     LazyColumn(
+  576:                                         modifier = Modifier.fillMaxSize(),
+  577:                                         contentPadding = PaddingValues(bottom = 16.dp),
+  578:                                         verticalArrangement = Arrangement.spacedBy(10.dp)
+  579:                                     ) {
+  580:                                         items(bookTeachings) { item ->
+  581:                                             CompendioItemCard(
+  582:                                                 item = item,
+  583:                                                 onOpenVideo = { openOfficialVideo(context, item.videoUrl) },
+  584:                                                 onReadTranscription = { onSelectDetailItem(item) },
+  585:                                                 onNavigateToPassage = if (item.libroId != null && item.capitulo != null) {
+  586:                                                     { onNavigateToPassage(item.libroId, item.capitulo, item.versiculoInicio ?: 1) }
+  587:                                                 } else null
+  588:                                             )
+  589:                                         }
+  590:                                     }
+  591:                                 }
+  592:                             }
+  593:                         }
+  594:                     } else {
+  595:                         // TAB 1: TEMAS DOCTRINALES (957)
+  596:                         LazyColumn(
+  597:                             modifier = Modifier
+  598:                                 .fillMaxSize()
+  599:                                 .padding(horizontal = 14.dp),
+  600:                             contentPadding = PaddingValues(bottom = 16.dp),
+  601:                             verticalArrangement = Arrangement.spacedBy(10.dp)
+  602:                         ) {
+  603:                             item {
+  604:                                 Text(
+  605:                                     text = "957 Enseñanzas Doctrinales y Respuestas Oficiales:",
+  606:                                     fontSize = 12.sp,
+  607:                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+  608:                                     modifier = Modifier.padding(vertical = 4.dp)
+  609:                                 )
+  610:                             }
+  611:                             items(thematicTeachings) { item ->
+  612:                                 CompendioItemCard(
+  613:                                     item = item,
+  614:                                     onOpenVideo = { openOfficialVideo(context, item.videoUrl) },
+  615:                                     onReadTranscription = { onSelectDetailItem(item) }
+  616:                                 )
+  617:                             }
+  618:                         }
+  619:                     }
+  620:                 }
+  621:             }
+  622:         }
+  623:     }
+  624: }
+  625: 
+  626: // =========================================================================
+  627: // 3. TARJETA DE CADA ENSEÑANZA COMPENDIO
+  628: // =========================================================================
+  629: 
+  630: @Composable
+  631: fun CompendioItemCard(
+  632:     item: CompendioItem,
+  633:     onOpenVideo: () -> Unit,
+  634:     onReadTranscription: () -> Unit,
+  635:     onNavigateToPassage: (() -> Unit)? = null
+  636: ) {
+  637:     Card(
+  638:         modifier = Modifier.fillMaxWidth(),
+  639:         shape = RoundedCornerShape(12.dp),
+  640:         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+  641:         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+  642:         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+  643:     ) {
+  644:         Column(modifier = Modifier.padding(12.dp)) {
+  645:             Row(
+  646:                 modifier = Modifier.fillMaxWidth(),
+  647:                 verticalAlignment = Alignment.CenterVertically,
+  648:                 horizontalArrangement = Arrangement.SpaceBetween
+  649:             ) {
+  650:                 if (item.cita.isNotBlank()) {
+  651:                     Text(
+  652:                         text = "📜 ${item.cita}",
+  653:                         fontWeight = FontWeight.Bold,
+  654:                         fontSize = 14.sp,
+  655:                         color = IdmjiPrimaryNavy
+  656:                     )
+  657:                 } else {
+  658:                     Text(
+  659:                         text = "🕊️ Enseñanza Doctrinal",
+  660:                         fontWeight = FontWeight.Bold,
+  661:                         fontSize = 13.sp,
+  662:                         color = IdmjiPrimaryNavy
+  663:                     )
+  664:                 }
+  665: 
+  666:                 Box(
+  667:                     modifier = Modifier
+  668:                         .clip(RoundedCornerShape(8.dp))
+  669:                         .background(IdmjiGold.copy(alpha = 0.15f))
+  670:                         .padding(horizontal = 6.dp, vertical = 2.dp)
+  671:                 ) {
+  672:                     Text(
+  673:                         text = formatSectionLabel(item.seccion),
+  674:                         fontSize = 10.sp,
+  675:                         fontWeight = FontWeight.SemiBold,
+  676:                         color = IdmjiGoldDark
+  677:                     )
+  678:                 }
+  679:             }
+  680: 
+  681:             Spacer(modifier = Modifier.height(6.dp))
+  682: 
+  683:             Text(
+  684:                 text = item.titulo,
+  685:                 fontSize = 13.sp,
+  686:                 fontWeight = FontWeight.Medium,
+  687:                 color = MaterialTheme.colorScheme.onSurface,
+  688:                 lineHeight = 18.sp,
+  689:                 maxLines = 3,
+  690:                 overflow = TextOverflow.Ellipsis
+  691:             )
+  692: 
+  693:             Spacer(modifier = Modifier.height(10.dp))
+  694: 
+  695:             // Botones de acción
+  696:             Row(
+  697:                 modifier = Modifier.fillMaxWidth(),
+  698:                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+  699:                 verticalAlignment = Alignment.CenterVertically
+  700:             ) {
+  701:                 // Ver video oficial
+  702:                 FilledTonalButton(
+  703:                     onClick = onOpenVideo,
+  704:                     modifier = Modifier.weight(1f),
+  705:                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+  706:                     colors = ButtonDefaults.filledTonalButtonColors(containerColor = IdmjiPrimaryNavy)
+  707:                 ) {
+  708:                     Icon(
+  709:                         Icons.Default.PlayArrow,
+  710:                         contentDescription = "Video",
+  711:                         modifier = Modifier.size(16.dp),
+  712:                         tint = IdmjiGold
+  713:                     )
+  714:                     Spacer(modifier = Modifier.width(4.dp))
+  715:                     Text(
+  716:                         text = "Ver Video",
+  717:                         fontSize = 12.sp,
+  718:                         fontWeight = FontWeight.SemiBold,
+  719:                         color = Color.White
+  720:                     )
+  721:                 }
+  722: 
+  723:                 // Leer transcripción
+  724:                 OutlinedButton(
+  725:                     onClick = onReadTranscription,
+  726:                     modifier = Modifier.weight(1f),
+  727:                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+  728:                     shape = RoundedCornerShape(8.dp)
+  729:                 ) {
+  730:                     Icon(
+  731:                         Icons.AutoMirrored.Filled.MenuBook,
+  732:                         contentDescription = "Leer",
+  733:                         modifier = Modifier.size(14.dp),
+  734:                         tint = IdmjiPrimaryNavy
+  735:                     )
+  736:                     Spacer(modifier = Modifier.width(4.dp))
+  737:                     Text(
+  738:                         text = "Leer Estudio",
+  739:                         fontSize = 12.sp,
+  740:                         color = IdmjiPrimaryNavy
+  741:                     )
+  742:                 }
+  743: 
+  744:                 // Ir al pasaje bíblico si está disponible
+  745:                 if (onNavigateToPassage != null) {
+  746:                     Box(
+  747:                         modifier = Modifier
+  748:                             .size(36.dp)
+  749:                             .clip(RoundedCornerShape(8.dp))
+  750:                             .background(IdmjiGold.copy(alpha = 0.15f))
+  751:                             .clickable(onClick = onNavigateToPassage),
+  752:                         contentAlignment = Alignment.Center
+  753:                     ) {
+  754:                         Icon(
+  755:                             Icons.AutoMirrored.Filled.ArrowForward,
+  756:                             contentDescription = "Ir al pasaje",
+  757:                             modifier = Modifier.size(16.dp),
+  758:                             tint = IdmjiPrimaryNavy
+  759:                         )
+  760:                     }
+  761:                 }
+  762:             }
+  763:         }
+  764:     }
+  765: }
+  766: 
+  767: // =========================================================================
+  768: // 4. DIÁLOGO LECTOR DETALLADO CON TRANSCRIPCIÓN OFICIAL Y MARCAS DE TIEMPO
+  769: // =========================================================================
+  770: 
+  771: @Composable
+  772: fun CompendioDetailDialog(
+  773:     item: CompendioItem,
+  774:     onDismiss: () -> Unit
+  775: ) {
+  776:     val context = LocalContext.current
+  777:     var fontSize by remember { mutableFloatStateOf(15f) }
+  778:     val scrollState = rememberScrollState()
+  779: 
+  780:     Dialog(
+  781:         onDismissRequest = onDismiss,
+  782:         properties = DialogProperties(usePlatformDefaultWidth = false)
+  783:     ) {
+  784:         Card(
+  785:             modifier = Modifier
+  786:                 .fillMaxWidth(0.96f)
+  787:                 .fillMaxHeight(0.94f),
+  788:             shape = RoundedCornerShape(20.dp),
+  789:             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+  790:             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+  791:         ) {
+  792:             Column(modifier = Modifier.fillMaxSize()) {
+  793:                 // Header
+  794:                 Box(
+  795:                     modifier = Modifier
+  796:                         .fillMaxWidth()
+  797:                         .background(IdmjiPrimaryNavy)
+  798:                         .padding(horizontal = 16.dp, vertical = 12.dp)
+  799:                 ) {
+  800:                     Row(
+  801:                         modifier = Modifier.fillMaxWidth(),
+  802:                         verticalAlignment = Alignment.CenterVertically,
+  803:                         horizontalArrangement = Arrangement.SpaceBetween
+  804:                     ) {
+  805:                         Row(
+  806:                             verticalAlignment = Alignment.CenterVertically,
+  807:                             modifier = Modifier.weight(1f)
+  808:                         ) {
+  809:                             Text("🕊️", fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
+  810:                             Column {
+  811:                                 if (item.cita.isNotBlank()) {
+  812:                                     Text(
+  813:                                         text = item.cita,
+  814:                                         fontWeight = FontWeight.Bold,
+  815:                                         fontSize = 16.sp,
+  816:                                         color = IdmjiGold
+  817:                                     )
+  818:                                 }
+  819:                                 Text(
+  820:                                     text = formatSectionLabel(item.seccion),
+  821:                                     fontSize = 11.sp,
+  822:                                     color = Color.White.copy(alpha = 0.85f)
+  823:                                 )
+  824:                             }
+  825:                         }
+  826: 
+  827:                         // Botones de zoom y cierre
+  828:                         Row(verticalAlignment = Alignment.CenterVertically) {
+  829:                             TextButtonSmall(text = "A-", onClick = { if (fontSize > 12f) fontSize -= 1.5f })
+  830:                             Spacer(modifier = Modifier.width(4.dp))
+  831:                             TextButtonSmall(text = "A+", onClick = { if (fontSize < 24f) fontSize += 1.5f })
+  832:                             Spacer(modifier = Modifier.width(8.dp))
+  833:                             IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+  834:                                 Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+  835:                             }
+  836:                         }
+  837:                     }
+  838:                 }
+  839: 
+  840:                 // Cuerpo con scroll
+  841:                 Column(
+  842:                     modifier = Modifier
+  843:                         .fillMaxSize()
+  844:                         .padding(horizontal = 16.dp)
+  845:                         .verticalScroll(scrollState)
+  846:                 ) {
+  847:                     Spacer(modifier = Modifier.height(14.dp))
+  848: 
+  849:                     // Título completo
+  850:                     Text(
+  851:                         text = item.titulo,
+  852:                         fontSize = 17.sp,
+  853:                         fontWeight = FontWeight.Bold,
+  854:                         color = MaterialTheme.colorScheme.onSurface,
+  855:                         lineHeight = 23.sp
+  856:                     )
+  857: 
+  858:                     Spacer(modifier = Modifier.height(12.dp))
+  859: 
+  860:                     // Barra con botón de video oficial y copiar
+  861:                     Row(
+  862:                         modifier = Modifier.fillMaxWidth(),
+  863:                         horizontalArrangement = Arrangement.spacedBy(10.dp),
+  864:                         verticalAlignment = Alignment.CenterVertically
+  865:                     ) {
+  866:                         FilledTonalButton(
+  867:                             onClick = { openOfficialVideo(context, item.videoUrl) },
+  868:                             modifier = Modifier.weight(1f),
+  869:                             colors = ButtonDefaults.filledTonalButtonColors(containerColor = IdmjiPrimaryNavy)
+  870:                         ) {
+  871:                             Icon(Icons.Default.PlayArrow, contentDescription = "Ver video", tint = IdmjiGold, modifier = Modifier.size(18.dp))
+  872:                             Spacer(modifier = Modifier.width(6.dp))
+  873:                             Text("Ver Video Oficial", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+  874:                         }
+  875: 
+  876:                         IconButton(
+  877:                             onClick = {
+  878:                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+  879:                                 val clipText = "${item.titulo}\n${item.videoUrl}\n\nDoctrina IDMJI"
+  880:                                 clipboard.setPrimaryClip(ClipData.newPlainText("Estudio IDMJI", clipText))
+  881:                                 Toast.makeText(context, "Enlace copiado al portapapeles", Toast.LENGTH_SHORT).show()
+  882:                             },
+  883:                             modifier = Modifier
+  884:                                 .size(40.dp)
+  885:                                 .clip(CircleShape)
+  886:                                 .background(IdmjiGold.copy(alpha = 0.15f))
+  887:                         ) {
+  888:                             Icon(Icons.Default.ContentCopy, contentDescription = "Copiar enlace", tint = IdmjiPrimaryNavy, modifier = Modifier.size(18.dp))
+  889:                         }
+  890:                     }
+  891: 
+  892:                     Spacer(modifier = Modifier.height(14.dp))
+  893: 
+  894:                     Text(
+  895:                         text = "Transcripción Literal Oficial:",
+  896:                         fontSize = 13.sp,
+  897:                         fontWeight = FontWeight.Bold,
+  898:                         color = IdmjiGoldDark
+  899:                     )
+  900: 
+  901:                     Spacer(modifier = Modifier.height(8.dp))
+  902: 
+  903:                     // Renderizado de la transcripción
+  904:                     // Limpieza y presentación amigable de los timestamps
+  905:                     TranscriptionTextView(
+  906:                         text = item.transcripcion,
+  907:                         fontSize = fontSize.sp,
+  908:                         onTimestampClick = { url -> openOfficialVideo(context, url) }
+  909:                     )
+  910: 
+  911:                     Spacer(modifier = Modifier.height(24.dp))
+  912:                 }
+  913:             }
+  914:         }
+  915:     }
+  916: }
+  917: 
+  918: @Composable
+  919: private fun TextButtonSmall(text: String, onClick: () -> Unit) {
+  920:     Box(
+  921:         modifier = Modifier
+  922:             .clip(RoundedCornerShape(6.dp))
+  923:             .background(Color.White.copy(alpha = 0.15f))
+  924:             .clickable(onClick = onClick)
+  925:             .padding(horizontal = 8.dp, vertical = 4.dp),
+  926:         contentAlignment = Alignment.Center
+  927:     ) {
+  928:         Text(text = text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+  929:     }
+  930: }
+  931: 
+  932: @Composable
+  933: private fun TranscriptionTextView(
+  934:     text: String,
+  935:     fontSize: androidx.compose.ui.unit.TextUnit,
+  936:     onTimestampClick: (String) -> Unit
+  937: ) {
+  938:     // Parser de fragmentos de texto y marcas de tiempo [[01:10]](url)
+  939:     val regex = remember { Regex("""\[\[(\d{1,2}:\d{2})\]\]\((https?://[^\)]+)\)""") }
+  940:     val lines = remember(text) { text.lines() }
+  941: 
+  942:     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  943:         for (line in lines) {
+  944:             val trimmed = line.trim()
+  945:             if (trimmed.isEmpty()) continue
+  946: 
+  947:             val match = regex.find(trimmed)
+  948:             if (match != null) {
+  949:                 val timeLabel = match.groupValues[1]
+  950:                 val videoUrl = match.groupValues[2]
+  951:                 val contentText = trimmed.substring(match.range.last + 1).trim()
+  952: 
+  953:                 Row(
+  954:                     modifier = Modifier.fillMaxWidth(),
+  955:                     verticalAlignment = Alignment.Top
+  956:                 ) {
+  957:                     // Chip interactivo del minuto exacto
+  958:                     Box(
+  959:                         modifier = Modifier
+  960:                             .clip(RoundedCornerShape(6.dp))
+  961:                             .background(IdmjiPrimaryNavy.copy(alpha = 0.1f))
+  962:                             .clickable { onTimestampClick(videoUrl) }
+  963:                             .padding(horizontal = 6.dp, vertical = 2.dp)
+  964:                     ) {
+  965:                         Text(
+  966:                             text = "▶ $timeLabel",
+  967:                             fontSize = (fontSize.value * 0.8f).sp,
+  968:                             fontWeight = FontWeight.Bold,
+  969:                             color = IdmjiPrimaryNavy
+  970:                         )
+  971:                     }
+  972: 
+  973:                     Spacer(modifier = Modifier.width(8.dp))
+  974: 
+  975:                     Text(
+  976:                         text = contentText,
+  977:                         fontSize = fontSize,
+  978:                         color = MaterialTheme.colorScheme.onSurface,
+  979:                         lineHeight = (fontSize.value * 1.45f).sp,
+  980:                         modifier = Modifier.weight(1f)
+  981:                     )
+  982:                 }
+  983:             } else {
+  984:                 Text(
+  985:                     text = trimmed,
+  986:                     fontSize = fontSize,
+  987:                     color = MaterialTheme.colorScheme.onSurface,
+  988:                     lineHeight = (fontSize.value * 1.45f).sp
+  989:                 )
+  990:             }
+  991:         }
+  992:     }
+  993: }
+
+ARCHIVO: app/src/main/kotlin/org/idmji/biblia/ui/BibleScreen.kt
+SHA256: 1f0c55286f5af36565e706f0dd8a997e5ac9b81e27d4511acb26637f214ac6e8
+    1: package org.idmji.biblia.ui
+    2: 
+    3: import androidx.compose.foundation.background
+    4: import androidx.compose.foundation.clickable
+    5: import androidx.compose.foundation.layout.Arrangement
+    6: import androidx.compose.foundation.layout.Box
+    7: import androidx.compose.foundation.layout.Column
+    8: import androidx.compose.foundation.layout.PaddingValues
+    9: import androidx.compose.foundation.layout.Row
+   10: import androidx.compose.foundation.layout.Spacer
+   11: import androidx.compose.foundation.layout.fillMaxSize
+   12: import androidx.compose.foundation.layout.fillMaxWidth
+   13: import androidx.compose.foundation.layout.height
+   14: import androidx.compose.foundation.layout.padding
+   15: import androidx.compose.foundation.layout.size
+   16: import androidx.compose.foundation.layout.width
+   17: import androidx.compose.foundation.lazy.LazyColumn
+   18: import androidx.compose.foundation.lazy.items
+   19: import androidx.compose.foundation.shape.CircleShape
+   20: import androidx.compose.foundation.shape.RoundedCornerShape
+   21: import androidx.compose.material.icons.Icons
+   22: import androidx.compose.material.icons.automirrored.filled.MenuBook
+   23: import androidx.compose.material.icons.filled.ArrowBack
+   24: import androidx.compose.material.icons.filled.ArrowForward
+   25: import androidx.compose.material.icons.filled.Edit
+   26: import androidx.compose.material.icons.filled.KeyboardArrowDown
+   27: import androidx.compose.material.icons.filled.Link
+   28: import androidx.compose.material.icons.filled.Search
+   29: import androidx.compose.material3.ButtonDefaults
+   30: import androidx.compose.material3.CenterAlignedTopAppBar
+   31: import androidx.compose.material3.CircularProgressIndicator
+   32: import androidx.compose.material3.ExperimentalMaterial3Api
+   33: import androidx.compose.material3.FilledTonalButton
+   34: import androidx.compose.material3.Icon
+   35: import androidx.compose.material3.IconButton
+   36: import androidx.compose.material3.MaterialTheme
+   37: import androidx.compose.material3.Scaffold
+   38: import androidx.compose.material3.Surface
+   39: import androidx.compose.material3.Text
+   40: import androidx.compose.material3.TopAppBarDefaults
+   41: import androidx.compose.runtime.Composable
+   42: import androidx.compose.runtime.collectAsState
+   43: import androidx.compose.runtime.getValue
+   44: import androidx.compose.ui.Alignment
+   45: import androidx.compose.ui.Modifier
+   46: import androidx.compose.ui.draw.clip
+   47: import androidx.compose.ui.graphics.Color
+   48: import androidx.compose.ui.text.SpanStyle
+   49: import androidx.compose.ui.text.buildAnnotatedString
+   50: import androidx.compose.ui.text.font.FontFamily
+   51: import androidx.compose.ui.text.font.FontStyle
+   52: import androidx.compose.ui.text.font.FontWeight
+   53: import androidx.compose.ui.text.withStyle
+   54: import androidx.compose.ui.unit.dp
+   55: import androidx.compose.ui.unit.sp
+   56: import org.idmji.biblia.model.ReadingTheme
+   57: import org.idmji.biblia.model.Verse
+   58: import org.idmji.biblia.ui.components.BookSelectorDialog
+   59: import org.idmji.biblia.ui.components.CompendioDetailDialog
+   60: import org.idmji.biblia.ui.components.CrossReferencesDialog
+   61: import org.idmji.biblia.ui.components.DictionaryDialog
+   62: import org.idmji.biblia.ui.components.GeneralCompendioDialog
+   63: import org.idmji.biblia.ui.components.NoteDialog
+   64: import org.idmji.biblia.ui.components.ReadingSettingsSheet
+   65: import org.idmji.biblia.ui.components.SearchDialog
+   66: import org.idmji.biblia.ui.components.VerseActionsBar
+   67: import org.idmji.biblia.ui.components.VerseCompendioDialog
+   68: import org.idmji.biblia.ui.theme.BibliaIDMJITheme
+   69: import org.idmji.biblia.ui.theme.IdmjiGold
+   70: import org.idmji.biblia.ui.theme.IdmjiGoldDark
+   71: import org.idmji.biblia.ui.theme.IdmjiNavyLight
+   72: import org.idmji.biblia.ui.theme.IdmjiPrimaryNavy
+   73: import org.idmji.biblia.ui.theme.parseHighlightColor
+   74: 
+   75: @OptIn(ExperimentalMaterial3Api::class)
+   76: @Composable
+   77: fun BibleScreen(viewModel: BibleViewModel) {
+   78:     val state by viewModel.uiState.collectAsState()
+   79: 
+   80:     BibliaIDMJITheme(readingTheme = state.settings.theme) {
+   81:         val fontFamily = if (state.settings.isSerif) FontFamily.Serif else FontFamily.SansSerif
+   82:         val fontSp = state.settings.fontSizeSp.sp
+   83:         val lineSpacing = (state.settings.fontSizeSp * 1.55f).sp
+   84: 
+   85:         Scaffold(
+   86:             topBar = {
+   87:                 CenterAlignedTopAppBar(
+   88:                     title = {
+   89:                         Row(
+   90:                             verticalAlignment = Alignment.CenterVertically,
+   91:                             modifier = Modifier
+   92:                                 .clip(RoundedCornerShape(20.dp))
+   93:                                 .background(IdmjiNavyLight.copy(alpha = 0.5f))
+   94:                                 .clickable { viewModel.setShowBookSelector(true) }
+   95:                                 .padding(horizontal = 14.dp, vertical = 5.dp)
+   96:                         ) {
+   97:                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+   98:                                 Row(verticalAlignment = Alignment.CenterVertically) {
+   99:                                     Text(
+  100:                                         text = "${state.currentBook?.name ?: ""} ${state.currentChapter}",
+  101:                                         fontWeight = FontWeight.Bold,
+  102:                                         fontSize = 17.sp,
+  103:                                         color = IdmjiGold
+  104:                                     )
+  105:                                     Spacer(modifier = Modifier.width(4.dp))
+  106:                                     Icon(
+  107:                                         Icons.Default.KeyboardArrowDown,
+  108:                                         contentDescription = "Cambiar libro",
+  109:                                         tint = IdmjiGold,
+  110:                                         modifier = Modifier.size(18.dp)
+  111:                                     )
+  112:                                 }
+  113:                                 Text(
+  114:                                     text = "Reina-Valera 1960",
+  115:                                     fontSize = 10.sp,
+  116:                                     fontWeight = FontWeight.Medium,
+  117:                                     color = Color.White.copy(alpha = 0.8f)
+  118:                                 )
+  119:                             }
+  120:                         }
+  121:                     },
+  122:                     actions = {
+  123:                         IconButton(onClick = { viewModel.openGeneralCompendio() }) {
+  124:                             Text("🕊️", fontSize = 18.sp)
+  125:                         }
+  126:                         IconButton(onClick = { viewModel.openDictionary() }) {
+  127:                             Icon(
+  128:                                 Icons.AutoMirrored.Filled.MenuBook,
+  129:                                 contentDescription = "Diccionario Bíblico",
+  130:                                 tint = MaterialTheme.colorScheme.onPrimary
+  131:                             )
+  132:                         }
+  133:                         IconButton(onClick = { viewModel.setShowSearchDialog(true) }) {
+  134:                             Icon(Icons.Default.Search, contentDescription = "Buscar", tint = MaterialTheme.colorScheme.onPrimary)
+  135:                         }
+  136:                         IconButton(onClick = { viewModel.setShowSettingsSheet(true) }) {
+  137:                             Text(
+  138:                                 text = "aA",
+  139:                                 fontWeight = FontWeight.Bold,
+  140:                                 fontSize = 16.sp,
+  141:                                 color = MaterialTheme.colorScheme.onPrimary
+  142:                             )
+  143:                         }
+  144:                     },
+  145:                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+  146:                         containerColor = IdmjiPrimaryNavy
+  147:                     )
+  148:                 )
+  149:             },
+  150:             bottomBar = {
+  151:                 // Barra de navegación de capítulos inferior
+  152:                 Surface(
+  153:                     color = MaterialTheme.colorScheme.surface,
+  154:                     tonalElevation = 4.dp,
+  155:                     shadowElevation = 8.dp
+  156:                 ) {
+  157:                     Row(
+  158:                         modifier = Modifier
+  159:                             .fillMaxWidth()
+  160:                             .padding(horizontal = 16.dp, vertical = 10.dp),
+  161:                         horizontalArrangement = Arrangement.SpaceBetween,
+  162:                         verticalAlignment = Alignment.CenterVertically
+  163:                     ) {
+  164:                         FilledTonalButton(
+  165:                             onClick = { viewModel.previousChapter() },
+  166:                             colors = ButtonDefaults.filledTonalButtonColors(
+  167:                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
+  168:                             )
+  169:                         ) {
+  170:                             Icon(Icons.Default.ArrowBack, contentDescription = "Capítulo anterior", modifier = Modifier.size(16.dp))
+  171:                             Spacer(modifier = Modifier.width(6.dp))
+  172:                             Text("Anterior", fontSize = 13.sp)
+  173:                         }
+  174: 
+  175:                         Text(
+  176:                             text = "RVR 1960",
+  177:                             fontSize = 12.sp,
+  178:                             fontWeight = FontWeight.SemiBold,
+  179:                             color = IdmjiGold
+  180:                         )
+  181: 
+  182:                         FilledTonalButton(
+  183:                             onClick = { viewModel.nextChapter() },
+  184:                             colors = ButtonDefaults.filledTonalButtonColors(
+  185:                                 containerColor = MaterialTheme.colorScheme.surfaceVariant
+  186:                             )
+  187:                         ) {
+  188:                             Text("Siguiente", fontSize = 13.sp)
+  189:                             Spacer(modifier = Modifier.width(6.dp))
+  190:                             Icon(Icons.Default.ArrowForward, contentDescription = "Capítulo siguiente", modifier = Modifier.size(16.dp))
+  191:                         }
+  192:                     }
+  193:                 }
+  194:             }
+  195:         ) { paddingValues ->
+  196:             Box(
+  197:                 modifier = Modifier
+  198:                     .fillMaxSize()
+  199:                     .padding(paddingValues)
+  200:                     .background(MaterialTheme.colorScheme.background)
+  201:             ) {
+  202:                 if (state.isLoading) {
+  203:                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+  204:                         CircularProgressIndicator(color = IdmjiGold)
+  205:                     }
+  206:                 } else {
+  207:                     LazyColumn(
+  208:                         modifier = Modifier.fillMaxSize(),
+  209:                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+  210:                         verticalArrangement = Arrangement.spacedBy(if (state.settings.isVerseByVerse) 12.dp else 6.dp)
+  211:                     ) {
+  212:                         // Título del capítulo
+  213:                         item {
+  214:                             Column(
+  215:                                 modifier = Modifier
+  216:                                     .fillMaxWidth()
+  217:                                     .padding(bottom = 16.dp),
+  218:                                 horizontalAlignment = Alignment.CenterHorizontally
+  219:                             ) {
+  220:                                 Text(
+  221:                                     text = state.currentBook?.name ?: "",
+  222:                                     fontWeight = FontWeight.Bold,
+  223:                                     fontSize = 24.sp,
+  224:                                     fontFamily = fontFamily,
+  225:                                     color = IdmjiGold
+  226:                                 )
+  227:                                 Text(
+  228:                                     text = "Capítulo ${state.currentChapter}",
+  229:                                     fontSize = 16.sp,
+  230:                                     fontWeight = FontWeight.Medium,
+  231:                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+  232:                                 )
+  233:                                 Spacer(modifier = Modifier.height(8.dp))
+  234:                                 Box(
+  235:                                     modifier = Modifier
+  236:                                         .width(48.dp)
+  237:                                         .height(2.dp)
+  238:                                         .background(IdmjiGold.copy(alpha = 0.5f))
+  239:                                 )
+  240:                             }
+  241:                         }
+  242: 
+  243:                         // Lista de versículos
+  244:                         items(state.verses, key = { it.id }) { verse ->
+  245:                             val pericopa = state.chapterPericopas[verse.verse]
+  246:                             if (pericopa != null) {
+  247:                                 PericopeHeaderView(
+  248:                                     title = pericopa.title,
+  249:                                     parallelPassages = pericopa.parallelPassages,
+  250:                                     fontFamily = fontFamily
+  251:                                 )
+  252:                             }
+  253:                             VerseItemView(
+  254:                                 verse = verse,
+  255:                                 isSelected = state.selectedVerse?.id == verse.id,
+  256:                                 isVerseByVerse = state.settings.isVerseByVerse,
+  257:                                 fontFamily = fontFamily,
+  258:                                 fontSize = fontSp,
+  259:                                 lineHeight = lineSpacing,
+  260:                                 hasCrossReferences = state.chapterOfficialNotes.containsKey(verse.verse),
+  261:                                 onOpenCrossReferences = { viewModel.openCrossReferencesForVerse(verse) },
+  262:                                 hasCompendio = state.chapterCompendioVerses.contains(verse.verse),
+  263:                                 onOpenCompendio = { viewModel.openCompendioForVerse(verse) },
+  264:                                 onClick = { viewModel.toggleVerseSelection(verse) }
+  265:                             )
+  266:                         }
+  267: 
+  268:                         item {
+  269:                             Spacer(modifier = Modifier.height(60.dp))
+  270:                         }
+  271:                     }
+  272: 
+  273:                     // Barra flotante de acciones sobre el versículo seleccionado
+  274:                     if (state.selectedVerse != null) {
+  275:                         Box(
+  276:                             modifier = Modifier
+  277:                                 .fillMaxWidth()
+  278:                                 .align(Alignment.BottomCenter)
+  279:                         ) {
+  280:                             VerseActionsBar(
+  281:                                 book = state.currentBook,
+  282:                                 verse = state.selectedVerse!!,
+  283:                                 onHighlight = { color -> viewModel.setHighlight(color) },
+  284:                                 onOpenNote = { viewModel.setShowNoteDialog(true) },
+  285:                                 onOpenDictionary = { viewModel.openDictionaryForVerse(state.selectedVerse!!) },
+  286:                                 onOpenCrossReferences = { viewModel.openCrossReferencesForVerse(state.selectedVerse!!) },
+  287:                                 onOpenCompendio = { viewModel.openCompendioForVerse(state.selectedVerse!!) },
+  288:                                 onDismiss = { viewModel.clearSelection() }
+  289:                             )
+  290:                         }
+  291:                     }
+  292:                 }
+  293:             }
+  294: 
+  295:             // Diálogos modales
+  296:             if (state.showBookSelector) {
+  297:                 BookSelectorDialog(
+  298:                     books = state.books,
+  299:                     currentBook = state.currentBook,
+  300:                     currentChapter = state.currentChapter,
+  301:                     onSelectChapter = { bookId, chapter ->
+  302:                         viewModel.selectChapter(bookId, chapter)
+  303:                     },
+  304:                     onDismiss = { viewModel.setShowBookSelector(false) }
+  305:                 )
+  306:             }
+  307: 
+  308:             if (state.showSettingsSheet) {
+  309:                 ReadingSettingsSheet(
+  310:                     settings = state.settings,
+  311:                     onUpdateFontSize = { viewModel.updateFontSize(it) },
+  312:                     onUpdateTheme = { viewModel.updateTheme(it) },
+  313:                     onToggleSerif = { viewModel.toggleFontFamily(it) },
+  314:                     onToggleVerseByVerse = { viewModel.toggleViewMode(it) },
+  315:                     onDismiss = { viewModel.setShowSettingsSheet(false) }
+  316:                 )
+  317:             }
+  318: 
+  319:             if (state.showNoteDialog && state.selectedVerse != null) {
+  320:                 NoteDialog(
+  321:                     book = state.currentBook,
+  322:                     verse = state.selectedVerse!!,
+  323:                     onSaveNote = { viewModel.saveNote(it) },
+  324:                     onDismiss = { viewModel.setShowNoteDialog(false) }
+  325:                 )
+  326:             }
+  327: 
+  328:             if (state.showSearchDialog) {
+  329:                 SearchDialog(
+  330:                     query = state.searchQuery,
+  331:                     results = state.searchResults,
+  332:                     isSearching = state.isSearching,
+  333:                     onQueryChange = { viewModel.search(it) },
+  334:                     onSelectResult = { bookId, chapter ->
+  335:                         viewModel.selectChapter(bookId, chapter)
+  336:                         viewModel.setShowSearchDialog(false)
+  337:                     },
+  338:                     onDismiss = { viewModel.setShowSearchDialog(false) }
+  339:                 )
+  340:             }
+  341: 
+  342:             if (state.showDictionaryDialog) {
+  343:                 DictionaryDialog(
+  344:                     letters = state.dictionaryLetters,
+  345:                     selectedLetter = state.selectedDictionaryLetter,
+  346:                     searchQuery = state.dictionarySearchQuery,
+  347:                     entries = state.dictionaryEntries,
+  348:                     selectedEntry = state.selectedDictionaryEntry,
+  349:                     isLoading = state.isDictionaryLoading,
+  350:                     verseCitation = state.dictionaryVerseCitation,
+  351:                     onSelectLetter = { viewModel.selectDictionaryLetter(it) },
+  352:                     onSearchQueryChange = { viewModel.searchDictionary(it) },
+  353:                     onSelectEntry = { viewModel.selectDictionaryEntry(it) },
+  354:                     onDismiss = { viewModel.closeDictionary() }
+  355:                 )
+  356:             }
+  357: 
+  358:             if (state.showCrossReferencesDialog) {
+  359:                 CrossReferencesDialog(
+  360:                     book = state.currentBook,
+  361:                     verse = state.crossReferenceVerse,
+  362:                     officialNote = state.currentOfficialNote,
+  363:                     resolvedOfficialRefs = state.currentResolvedOfficialRefs,
+  364:                     tskReferences = state.currentTskReferences,
+  365:                     pericopa = state.currentPericopaForVerse,
+  366:                     isLoading = state.isLoadingCrossReferences,
+  367:                     onNavigateToPassage = { bookId, chapter, verse ->
+  368:                         viewModel.navigateToPassage(bookId, chapter, verse)
+  369:                     },
+  370:                     onDismiss = { viewModel.closeCrossReferences() }
+  371:                 )
+  372:             }
+  373: 
+  374:             if (state.showVerseCompendioDialog) {
+  375:                 VerseCompendioDialog(
+  376:                     book = state.currentBook,
+  377:                     verse = state.verseCompendioTargetVerse,
+  378:                     items = state.verseCompendioItems,
+  379:                     isLoading = state.isCompendioLoading,
+  380:                     onOpenGeneralCompendio = { viewModel.openGeneralCompendio() },
+  381:                     onSelectDetailItem = { viewModel.selectCompendioItem(it) },
+  382:                     onDismiss = { viewModel.closeVerseCompendio() }
+  383:                 )
+  384:             }
+  385: 
+  386:             if (state.showGeneralCompendioDialog) {
+  387:                 GeneralCompendioDialog(
+  388:                     booksWithCounts = state.compendioBooksWithCounts,
+  389:                     selectedBook = state.compendioSelectedBook,
+  390:                     bookTeachings = state.compendioBookTeachings,
+  391:                     thematicTeachings = state.compendioThematicTeachings,
+  392:                     searchQuery = state.compendioSearchQuery,
+  393:                     searchResults = state.compendioSearchResults,
+  394:                     isLoading = state.isCompendioLoading,
+  395:                     onSelectBook = { viewModel.selectCompendioBook(it) },
+  396:                     onSearchQueryChange = { viewModel.searchCompendio(it) },
+  397:                     onSelectDetailItem = { viewModel.selectCompendioItem(it) },
+  398:                     onNavigateToPassage = { bookId, chapter, verse ->
+  399:                         viewModel.navigateToCompendioPassage(bookId, chapter, verse)
+  400:                     },
+  401:                     onDismiss = { viewModel.closeGeneralCompendio() }
+  402:                 )
+  403:             }
+  404: 
+  405:             if (state.selectedCompendioItem != null) {
+  406:                 CompendioDetailDialog(
+  407:                     item = state.selectedCompendioItem!!,
+  408:                     onDismiss = { viewModel.selectCompendioItem(null) }
+  409:                 )
+  410:             }
+  411:         }
+  412:     }
+  413: }
+  414: 
+  415: @Composable
+  416: fun VerseItemView(
+  417:     verse: Verse,
+  418:     isSelected: Boolean,
+  419:     isVerseByVerse: Boolean,
+  420:     fontFamily: FontFamily,
+  421:     fontSize: androidx.compose.ui.unit.TextUnit,
+  422:     lineHeight: androidx.compose.ui.unit.TextUnit,
+  423:     hasCrossReferences: Boolean = false,
+  424:     onOpenCrossReferences: () -> Unit = {},
+  425:     hasCompendio: Boolean = false,
+  426:     onOpenCompendio: () -> Unit = {},
+  427:     onClick: () -> Unit
+  428: ) {
+  429:     val highlightColor = parseHighlightColor(verse.highlightColor)
+  430:     val hasNote = !verse.note.isNullOrEmpty()
+  431: 
+  432:     Box(
+  433:         modifier = Modifier
+  434:             .fillMaxWidth()
+  435:             .clip(RoundedCornerShape(8.dp))
+  436:             .background(
+  437:                 when {
+  438:                     isSelected -> IdmjiGold.copy(alpha = 0.25f)
+  439:                     highlightColor != null -> highlightColor.copy(alpha = 0.5f)
+  440:                     else -> Color.Transparent
+  441:                 }
+  442:             )
+  443:             .clickable(onClick = onClick)
+  444:             .padding(horizontal = 6.dp, vertical = 4.dp)
+  445:     ) {
+  446:         val annotatedText = buildAnnotatedString {
+  447:             withStyle(
+  448:                 style = SpanStyle(
+  449:                     fontWeight = FontWeight.Bold,
+  450:                     color = IdmjiGold,
+  451:                     fontSize = (fontSize.value * 0.75f).sp
+  452:                 )
+  453:             ) {
+  454:                 append("${verse.verse} ")
+  455:             }
+  456:             withStyle(
+  457:                 style = SpanStyle(
+  458:                     color = MaterialTheme.colorScheme.onBackground,
+  459:                     fontFamily = fontFamily,
+  460:                     fontSize = fontSize
+  461:                 )
+  462:             ) {
+  463:                 append(verse.text)
+  464:             }
+  465:         }
+  466: 
+  467:         Row(
+  468:             modifier = Modifier.fillMaxWidth(),
+  469:             verticalAlignment = Alignment.Top
+  470:         ) {
+  471:             Text(
+  472:                 text = annotatedText,
+  473:                 modifier = Modifier.weight(1f),
+  474:                 lineHeight = lineHeight
+  475:             )
+  476: 
+  477:             if (hasCompendio) {
+  478:                 Spacer(modifier = Modifier.width(4.dp))
+  479:                 Box(
+  480:                     modifier = Modifier
+  481:                         .size(24.dp)
+  482:                         .clip(CircleShape)
+  483:                         .background(IdmjiPrimaryNavy.copy(alpha = 0.12f))
+  484:                         .clickable(onClick = onOpenCompendio),
+  485:                     contentAlignment = Alignment.Center
+  486:                 ) {
+  487:                     Text(
+  488:                         text = "🕊️",
+  489:                         fontSize = 11.sp
+  490:                     )
+  491:                 }
+  492:             }
+  493: 
+  494:             if (hasCrossReferences) {
+  495:                 Spacer(modifier = Modifier.width(4.dp))
+  496:                 Box(
+  497:                     modifier = Modifier
+  498:                         .size(24.dp)
+  499:                         .clip(CircleShape)
+  500:                         .background(IdmjiGold.copy(alpha = 0.15f))
+  501:                         .clickable(onClick = onOpenCrossReferences),
+  502:                     contentAlignment = Alignment.Center
+  503:                 ) {
+  504:                     Icon(
+  505:                         Icons.Default.Link,
+  506:                         contentDescription = "Referencias cruzadas",
+  507:                         modifier = Modifier.size(14.dp),
+  508:                         tint = IdmjiPrimaryNavy
+  509:                     )
+  510:                 }
+  511:             }
+  512: 
+  513:             if (hasNote) {
+  514:                 Spacer(modifier = Modifier.width(6.dp))
+  515:                 Icon(
+  516:                     Icons.Default.Edit,
+  517:                     contentDescription = "Nota adjunta",
+  518:                     modifier = Modifier
+  519:                         .size(16.dp)
+  520:                         .padding(top = 4.dp),
+  521:                     tint = IdmjiGold
+  522:                 )
+  523:             }
+  524:         }
+  525:     }
+  526: }
+  527: 
+  528: @Composable
+  529: fun PericopeHeaderView(
+  530:     title: String,
+  531:     parallelPassages: String?,
+  532:     fontFamily: FontFamily
+  533: ) {
+  534:     Column(
+  535:         modifier = Modifier
+  536:             .fillMaxWidth()
+  537:             .padding(top = 18.dp, bottom = 6.dp, start = 6.dp, end = 6.dp)
+  538:     ) {
+  539:         Text(
+  540:             text = title,
+  541:             fontFamily = fontFamily,
+  542:             fontWeight = FontWeight.Bold,
+  543:             fontSize = 17.sp,
+  544:             color = IdmjiPrimaryNavy,
+  545:             lineHeight = 22.sp
+  546:         )
+  547:         if (!parallelPassages.isNullOrBlank()) {
+  548:             Spacer(modifier = Modifier.height(2.dp))
+  549:             Text(
+  550:                 text = parallelPassages,
+  551:                 fontFamily = fontFamily,
+  552:                 fontStyle = FontStyle.Italic,
+  553:                 fontWeight = FontWeight.Medium,
+  554:                 fontSize = 13.sp,
+  555:                 color = IdmjiGoldDark,
+  556:                 lineHeight = 18.sp
+  557:             )
+  558:         }
+  559:     }
+  560: }

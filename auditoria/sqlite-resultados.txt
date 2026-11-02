@@ -1,0 +1,57 @@
+integrity_check
+---------------
+ok
+user_version
+------------
+           2
+  tipo    registros
+--------  ---------
+CANONICO       5141
+TEMATICO       3115
+total
+-----
+ 8256
+canonicos_invalidos
+-------------------
+                  0
+libros  MIN(id)  MAX(id)
+------  -------  -------
+    66        1       66
+ id       cita      libro_id  capitulo  versiculo_inicio  versiculo_fin                                                                              muestra
+----  ------------  --------  --------  ----------------  -------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+3876  Mateo 9:22          40         9                22             22  [[01:06:57]](https://www.youtube.com/watch?v=X3IFaTH0huk&t=4017s) hermana buenas noches mientras su mar se nos estaba y leyendo la biblia de sentía como mi cora
+4230  Marcos 10:52        41        10                52             52  [[01:06:57]](https://www.youtube.com/watch?v=X3IFaTH0huk&t=4017s) hermana buenas noches mientras su mar se nos estaba y leyendo la biblia de sentía como mi cora
+registros  bytes_transcripciones  max_bytes_transcripcion
+---------  ---------------------  -----------------------
+     8256              214798277                   114496
+       name                                                            sql
+-------------------  --------------------------------------------------------------------------------------------------------
+compendio_idmji      CREATE TABLE compendio_idmji (
+                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                         tipo TEXT NOT NULL,
+                         libro_id INTEGER,
+                         capitulo INTEGER,
+                         versiculo_inicio INTEGER,
+                         versiculo_fin INTEGER,
+                         cita TEXT,
+                         titulo TEXT NOT NULL,
+                         video_url TEXT,
+                         video_id TEXT,
+                         seccion TEXT,
+                         transcripcion TEXT
+                     )
+
+idx_compendio_verse  CREATE INDEX idx_compendio_verse ON compendio_idmji(libro_id, capitulo, versiculo_inicio, versiculo_fin)
+
+idx_compendio_tipo   CREATE INDEX idx_compendio_tipo ON compendio_idmji(tipo)
+
+idx_compendio_libro  CREATE INDEX idx_compendio_libro ON compendio_idmji(libro_id)
+libro_id  registros
+--------  ---------
+      19        633
+      40        523
+      43        338
+      23        331
+      42        291
+QUERY PLAN
+`--SCAN c USING INDEX idx_compendio_tipo

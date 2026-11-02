@@ -1,0 +1,1128 @@
+--- antes/app/src/main/kotlin/org/idmji/biblia/ui/BibleScreen.kt
++++ despues/app/src/main/kotlin/org/idmji/biblia/ui/BibleScreen.kt
+@@ -34,10 +34,14 @@
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.IconButton
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.SnackbarHost
++import androidx.compose.material3.SnackbarHostState
+ import androidx.compose.material3.Scaffold
+ import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TopAppBarDefaults
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.remember
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+@@ -76,6 +80,13 @@
+ @Composable
+ fun BibleScreen(viewModel: BibleViewModel) {
+     val state by viewModel.uiState.collectAsState()
++    val snackbar = remember { SnackbarHostState() }
++    LaunchedEffect(state.errorMessage) {
++        state.errorMessage?.let {
++            snackbar.showSnackbar(it)
++            viewModel.dismissError()
++        }
++    }
+ 
+     BibliaIDMJITheme(readingTheme = state.settings.theme) {
+         val fontFamily = if (state.settings.isSerif) FontFamily.Serif else FontFamily.SansSerif
+@@ -83,6 +94,7 @@
+         val lineSpacing = (state.settings.fontSizeSp * 1.55f).sp
+ 
+         Scaffold(
++            snackbarHost = { SnackbarHost(snackbar) },
+             topBar = {
+                 CenterAlignedTopAppBar(
+                     title = {
+@@ -392,6 +404,9 @@
+                     searchQuery = state.compendioSearchQuery,
+                     searchResults = state.compendioSearchResults,
+                     isLoading = state.isCompendioLoading,
++                    thematicPage = state.compendioThematicPage,
++                    thematicHasNext = state.compendioThematicHasNext,
++                    onThematicPageChange = viewModel::loadThematicPage,
+                     onSelectBook = { viewModel.selectCompendioBook(it) },
+                     onSearchQueryChange = { viewModel.searchCompendio(it) },
+                     onSelectDetailItem = { viewModel.selectCompendioItem(it) },
+@@ -402,6 +417,13 @@
+                 )
+             }
+ 
++            if (state.isCompendioDetailLoading) {
++                androidx.compose.ui.window.Dialog(onDismissRequest = { viewModel.selectCompendioItem(null) }) {
++                    Surface(shape = RoundedCornerShape(16.dp)) {
++                        CircularProgressIndicator(modifier = Modifier.padding(24.dp))
++                    }
++                }
++            }
+             if (state.selectedCompendioItem != null) {
+                 CompendioDetailDialog(
+                     item = state.selectedCompendioItem!!,
+--- antes/app/src/main/kotlin/org/idmji/biblia/ui/components/CompendioDialog.kt
++++ despues/app/src/main/kotlin/org/idmji/biblia/ui/components/CompendioDialog.kt
+@@ -28,10 +28,8 @@
+ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+ import androidx.compose.foundation.lazy.grid.items
+ import androidx.compose.foundation.lazy.items
+-import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+-import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.filled.ArrowBack
+ import androidx.compose.material.icons.automirrored.filled.ArrowForward
+@@ -285,6 +283,9 @@
+     searchQuery: String,
+     searchResults: List<CompendioItem>,
+     isLoading: Boolean,
++    thematicPage: Int,
++    thematicHasNext: Boolean,
++    onThematicPageChange: (Int) -> Unit,
+     onSelectBook: (Book?) -> Unit,
+     onSearchQueryChange: (String) -> Unit,
+     onSelectDetailItem: (CompendioItem) -> Unit,
+@@ -592,7 +593,7 @@
+                             }
+                         }
+                     } else {
+-                        // TAB 1: TEMAS DOCTRINALES (957)
++                        // TAB 1: TEMAS DOCTRINALES PAGINADOS
+                         LazyColumn(
+                             modifier = Modifier
+                                 .fillMaxSize()
+@@ -602,13 +603,22 @@
+                         ) {
+                             item {
+                                 Text(
+-                                    text = "957 Enseñanzas Doctrinales y Respuestas Oficiales:",
++                                    text = "Enseñanzas doctrinales · Página ${thematicPage + 1}",
+                                     fontSize = 12.sp,
+                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                     modifier = Modifier.padding(vertical = 4.dp)
+                                 )
+                             }
+-                            items(thematicTeachings) { item ->
++                            item {
++                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
++                                    OutlinedButton(enabled = thematicPage > 0 && !isLoading,
++                                        onClick = { onThematicPageChange(thematicPage - 1) }) { Text("Anterior") }
++                                    OutlinedButton(enabled = thematicHasNext && !isLoading,
++                                        onClick = { onThematicPageChange(thematicPage + 1) }) { Text("Siguiente") }
++                                }
++                                if (isLoading) CircularProgressIndicator(color = IdmjiGold)
++                            }
++                            items(thematicTeachings, key = { it.id }) { item ->
+                                 CompendioItemCard(
+                                     item = item,
+                                     onOpenVideo = { openOfficialVideo(context, item.videoUrl) },
+@@ -775,7 +785,7 @@
+ ) {
+     val context = LocalContext.current
+     var fontSize by remember { mutableFloatStateOf(15f) }
+-    val scrollState = rememberScrollState()
++    val paragraphs = remember(item.id, item.transcripcion) { TranscriptionParser.parse(item.transcripcion) }
+ 
+     Dialog(
+         onDismissRequest = onDismiss,
+@@ -837,78 +847,77 @@
+                     }
+                 }
+ 
+-                // Cuerpo con scroll
+-                Column(
++                // Compose only the visible transcription paragraphs.
++                LazyColumn(
+                     modifier = Modifier
+                         .fillMaxSize()
+-                        .padding(horizontal = 16.dp)
+-                        .verticalScroll(scrollState)
++                        .padding(horizontal = 16.dp),
++                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                 ) {
+-                    Spacer(modifier = Modifier.height(14.dp))
+-
+-                    // Título completo
+-                    Text(
+-                        text = item.titulo,
+-                        fontSize = 17.sp,
+-                        fontWeight = FontWeight.Bold,
+-                        color = MaterialTheme.colorScheme.onSurface,
+-                        lineHeight = 23.sp
+-                    )
+-
+-                    Spacer(modifier = Modifier.height(12.dp))
+-
+-                    // Barra con botón de video oficial y copiar
+-                    Row(
+-                        modifier = Modifier.fillMaxWidth(),
+-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+-                        verticalAlignment = Alignment.CenterVertically
+-                    ) {
+-                        FilledTonalButton(
+-                            onClick = { openOfficialVideo(context, item.videoUrl) },
+-                            modifier = Modifier.weight(1f),
+-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = IdmjiPrimaryNavy)
+-                        ) {
+-                            Icon(Icons.Default.PlayArrow, contentDescription = "Ver video", tint = IdmjiGold, modifier = Modifier.size(18.dp))
+-                            Spacer(modifier = Modifier.width(6.dp))
+-                            Text("Ver Video Oficial", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+-                        }
+-
+-                        IconButton(
+-                            onClick = {
+-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+-                                val clipText = "${item.titulo}\n${item.videoUrl}\n\nDoctrina IDMJI"
+-                                clipboard.setPrimaryClip(ClipData.newPlainText("Estudio IDMJI", clipText))
+-                                Toast.makeText(context, "Enlace copiado al portapapeles", Toast.LENGTH_SHORT).show()
+-                            },
+-                            modifier = Modifier
+-                                .size(40.dp)
+-                                .clip(CircleShape)
+-                                .background(IdmjiGold.copy(alpha = 0.15f))
+-                        ) {
+-                            Icon(Icons.Default.ContentCopy, contentDescription = "Copiar enlace", tint = IdmjiPrimaryNavy, modifier = Modifier.size(18.dp))
+-                        }
+-                    }
+-
+-                    Spacer(modifier = Modifier.height(14.dp))
+-
+-                    Text(
+-                        text = "Transcripción Literal Oficial:",
+-                        fontSize = 13.sp,
+-                        fontWeight = FontWeight.Bold,
+-                        color = IdmjiGoldDark
+-                    )
+-
+-                    Spacer(modifier = Modifier.height(8.dp))
+-
+-                    // Renderizado de la transcripción
+-                    // Limpieza y presentación amigable de los timestamps
+-                    TranscriptionTextView(
+-                        text = item.transcripcion,
+-                        fontSize = fontSize.sp,
+-                        onTimestampClick = { url -> openOfficialVideo(context, url) }
+-                    )
+-
+-                    Spacer(modifier = Modifier.height(24.dp))
++                    item {
++                        Column {
++                            Spacer(modifier = Modifier.height(14.dp))
++
++                            // Título completo
++                            Text(
++                                text = item.titulo,
++                                fontSize = 17.sp,
++                                fontWeight = FontWeight.Bold,
++                                color = MaterialTheme.colorScheme.onSurface,
++                                lineHeight = 23.sp
++                            )
++
++                            Spacer(modifier = Modifier.height(12.dp))
++
++                            // Barra con botón de video oficial y copiar
++                            Row(
++                                modifier = Modifier.fillMaxWidth(),
++                                horizontalArrangement = Arrangement.spacedBy(10.dp),
++                                verticalAlignment = Alignment.CenterVertically
++                            ) {
++                                FilledTonalButton(
++                                    onClick = { openOfficialVideo(context, item.videoUrl) },
++                                    modifier = Modifier.weight(1f),
++                                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = IdmjiPrimaryNavy)
++                                ) {
++                                    Icon(Icons.Default.PlayArrow, contentDescription = "Ver video", tint = IdmjiGold, modifier = Modifier.size(18.dp))
++                                    Spacer(modifier = Modifier.width(6.dp))
++                                    Text("Ver Video Oficial", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
++                                }
++
++                                IconButton(
++                                    onClick = {
++                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
++                                        val clipText = "${item.titulo}\n${item.videoUrl}\n\nDoctrina IDMJI"
++                                        clipboard.setPrimaryClip(ClipData.newPlainText("Estudio IDMJI", clipText))
++                                        Toast.makeText(context, "Enlace copiado al portapapeles", Toast.LENGTH_SHORT).show()
++                                    },
++                                    modifier = Modifier
++                                        .size(40.dp)
++                                        .clip(CircleShape)
++                                        .background(IdmjiGold.copy(alpha = 0.15f))
++                                ) {
++                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copiar enlace", tint = IdmjiPrimaryNavy, modifier = Modifier.size(18.dp))
++                                }
++                            }
++
++                            Spacer(modifier = Modifier.height(14.dp))
++
++                            Text(
++                                text = "Transcripción Literal Oficial:",
++                                fontSize = 13.sp,
++                                fontWeight = FontWeight.Bold,
++                                color = IdmjiGoldDark
++                            )
++
++                            Spacer(modifier = Modifier.height(8.dp))
++
++                        }
++                    }
++                    items(paragraphs) { paragraph ->
++                        TranscriptionTextView(paragraph, fontSize.sp) { url -> openOfficialVideo(context, url) }
++                    }
++                    item { Spacer(modifier = Modifier.height(24.dp)) }
+                 }
+             }
+         }
+@@ -931,63 +940,23 @@
+ 
+ @Composable
+ private fun TranscriptionTextView(
+-    text: String,
++    paragraph: TranscriptionParagraph,
+     fontSize: androidx.compose.ui.unit.TextUnit,
+     onTimestampClick: (String) -> Unit
+ ) {
+-    // Parser de fragmentos de texto y marcas de tiempo [[01:10]](url)
+-    val regex = remember { Regex("""\[\[(\d{1,2}:\d{2})\]\]\((https?://[^\)]+)\)""") }
+-    val lines = remember(text) { text.lines() }
+-
+-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+-        for (line in lines) {
+-            val trimmed = line.trim()
+-            if (trimmed.isEmpty()) continue
+-
+-            val match = regex.find(trimmed)
+-            if (match != null) {
+-                val timeLabel = match.groupValues[1]
+-                val videoUrl = match.groupValues[2]
+-                val contentText = trimmed.substring(match.range.last + 1).trim()
+-
+-                Row(
+-                    modifier = Modifier.fillMaxWidth(),
+-                    verticalAlignment = Alignment.Top
+-                ) {
+-                    // Chip interactivo del minuto exacto
+-                    Box(
+-                        modifier = Modifier
+-                            .clip(RoundedCornerShape(6.dp))
+-                            .background(IdmjiPrimaryNavy.copy(alpha = 0.1f))
+-                            .clickable { onTimestampClick(videoUrl) }
+-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+-                    ) {
+-                        Text(
+-                            text = "▶ $timeLabel",
+-                            fontSize = (fontSize.value * 0.8f).sp,
+-                            fontWeight = FontWeight.Bold,
+-                            color = IdmjiPrimaryNavy
+-                        )
+-                    }
+-
+-                    Spacer(modifier = Modifier.width(8.dp))
+-
+-                    Text(
+-                        text = contentText,
+-                        fontSize = fontSize,
+-                        color = MaterialTheme.colorScheme.onSurface,
+-                        lineHeight = (fontSize.value * 1.45f).sp,
+-                        modifier = Modifier.weight(1f)
+-                    )
+-                }
+-            } else {
+-                Text(
+-                    text = trimmed,
+-                    fontSize = fontSize,
+-                    color = MaterialTheme.colorScheme.onSurface,
+-                    lineHeight = (fontSize.value * 1.45f).sp
+-                )
++    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
++        val url = paragraph.url
++        if (url != null) {
++            Box(modifier = Modifier.clip(RoundedCornerShape(6.dp))
++                .background(IdmjiPrimaryNavy.copy(alpha = 0.1f))
++                .clickable { onTimestampClick(url) }.padding(horizontal = 6.dp, vertical = 2.dp)) {
++                Text("▶ ${paragraph.timestamp}", fontSize = (fontSize.value * 0.8f).sp,
++                    fontWeight = FontWeight.Bold, color = IdmjiPrimaryNavy)
+             }
++            Spacer(modifier = Modifier.width(8.dp))
+         }
++        Text(text = paragraph.text, fontSize = fontSize,
++            color = MaterialTheme.colorScheme.onSurface,
++            lineHeight = (fontSize.value * 1.45f).sp, modifier = Modifier.weight(1f))
+     }
+ }
+--- antes/app/src/main/kotlin/org/idmji/biblia/ui/BibleViewModel.kt
++++ despues/app/src/main/kotlin/org/idmji/biblia/ui/BibleViewModel.kt
+@@ -8,6 +8,12 @@
+ import kotlinx.coroutines.flow.asStateFlow
+ import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.launch
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.delay
+ import org.idmji.biblia.data.BibleRepository
+ import org.idmji.biblia.model.Book
+ import org.idmji.biblia.model.CompendioItem
+@@ -68,6 +74,11 @@
+     val compendioSearchQuery: String = "",
+     val compendioSearchResults: List<CompendioItem> = emptyList(),
+     val selectedCompendioItem: CompendioItem? = null,
++    val errorMessage: String? = null,
++    val compendioThematicTotal: Int = 0,
++    val compendioThematicPage: Int = 0,
++    val compendioThematicHasNext: Boolean = false,
++    val isCompendioDetailLoading: Boolean = false,
+     val isCompendioLoading: Boolean = false
+ )
+ 
+@@ -76,6 +87,34 @@
+ 
+     private val _uiState = MutableStateFlow(BibleUiState())
+     val uiState: StateFlow<BibleUiState> = _uiState.asStateFlow()
++
++    private var chapterJob: Job? = null
++    private var compendioJob: Job? = null
++    private var compendioSearchJob: Job? = null
++    private var compendioDetailJob: Job? = null
++
++    fun dismissError() { _uiState.update { it.copy(errorMessage = null) } }
++
++    private fun reportError(error: Exception) {
++        android.util.Log.e("BibleViewModel", "Error al cargar datos locales", error)
++        _uiState.update { it.copy(errorMessage = "No se pudieron cargar los datos. Intenta de nuevo.") }
++    }
++
++    private fun loadCompendio(block: suspend () -> Unit) {
++        compendioJob?.cancel()
++        _uiState.update { it.copy(isCompendioLoading = true, errorMessage = null) }
++        compendioJob = viewModelScope.launch {
++            try { block() }
++            catch (cancelled: CancellationException) { throw cancelled }
++            catch (error: Exception) { reportError(error) }
++            finally {
++                if (currentCoroutineContext().isActive) {
++                    _uiState.update { it.copy(isCompendioLoading = false) }
++                }
++            }
++        }
++    }
++
+ 
+     init {
+         viewModelScope.launch {
+@@ -86,53 +125,66 @@
+                 }
+             }
+ 
+-            // Cargar libros y última posición
+-            val allBooks = repository.getBooks()
+-            val (lastBookId, lastChapter, _) = repository.getLastPosition()
+-            val initialBook = allBooks.find { it.id == lastBookId } ?: allBooks.firstOrNull() ?: Book(1, "Génesis", "Gn", "AT", "Pentateuco", 50)
++            try {
++                // Cargar libros y última posición
++                val allBooks = repository.getBooks()
++                val (lastBookId, lastChapter, _) = repository.getLastPosition()
++                val initialBook = allBooks.find { it.id == lastBookId } ?: allBooks.firstOrNull() ?: Book(1, "Génesis", "Gn", "AT", "Pentateuco", 50)
+             
+-            val initialVerses = repository.getVerses(initialBook.id, lastChapter)
+-            val initialPericopas = repository.getPericopasForChapter(initialBook.id, lastChapter)
+-            val initialNotes = repository.getOfficialNotesForChapter(initialBook.id, lastChapter)
+-            val initialCompendioVerses = repository.getCompendioVersesForChapter(initialBook.id, lastChapter)
+-
+-            _uiState.update {
+-                it.copy(
+-                    isLoading = false,
+-                    books = allBooks,
+-                    currentBook = initialBook,
+-                    currentChapter = lastChapter,
+-                    verses = initialVerses,
+-                    chapterPericopas = initialPericopas,
+-                    chapterOfficialNotes = initialNotes,
+-                    chapterCompendioVerses = initialCompendioVerses
+-                )
++                val initialVerses = repository.getVerses(initialBook.id, lastChapter)
++                val initialPericopas = repository.getPericopasForChapter(initialBook.id, lastChapter)
++                val initialNotes = repository.getOfficialNotesForChapter(initialBook.id, lastChapter)
++                val initialCompendioVerses = repository.getCompendioVersesForChapter(initialBook.id, lastChapter)
++
++                _uiState.update {
++                    it.copy(
++                        isLoading = false,
++                        books = allBooks,
++                        currentBook = initialBook,
++                        currentChapter = lastChapter,
++                        verses = initialVerses,
++                        chapterPericopas = initialPericopas,
++                        chapterOfficialNotes = initialNotes,
++                        chapterCompendioVerses = initialCompendioVerses
++                    )
++                }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (error: Exception) {
++                reportError(error)
++                _uiState.update { it.copy(isLoading = false) }
+             }
+         }
+     }
+ 
+     fun selectChapter(bookId: Int, chapter: Int) {
+-        viewModelScope.launch {
+-            val book = _uiState.value.books.find { it.id == bookId } ?: return@launch
+-            val validChapter = chapter.coerceIn(1, book.chaptersCount)
+-            val versesList = repository.getVerses(book.id, validChapter)
+-            val pericopasMap = repository.getPericopasForChapter(book.id, validChapter)
+-            val notesMap = repository.getOfficialNotesForChapter(book.id, validChapter)
+-            val compendioVerses = repository.getCompendioVersesForChapter(book.id, validChapter)
+-
+-            _uiState.update {
+-                it.copy(
+-                    currentBook = book,
+-                    currentChapter = validChapter,
+-                    verses = versesList,
+-                    chapterPericopas = pericopasMap,
+-                    chapterOfficialNotes = notesMap,
+-                    chapterCompendioVerses = compendioVerses,
+-                    selectedVerse = null,
+-                    showBookSelector = false
+-                )
+-            }
+-            repository.saveLastPosition(book.id, validChapter, 1)
++        chapterJob?.cancel()
++        chapterJob = viewModelScope.launch {
++            try {
++                val book = _uiState.value.books.find { it.id == bookId } ?: return@launch
++                val validChapter = chapter.coerceIn(1, book.chaptersCount)
++                val versesList = repository.getVerses(book.id, validChapter)
++                val pericopasMap = repository.getPericopasForChapter(book.id, validChapter)
++                val notesMap = repository.getOfficialNotesForChapter(book.id, validChapter)
++                val compendioVerses = repository.getCompendioVersesForChapter(book.id, validChapter)
++
++                currentCoroutineContext().ensureActive()
++                _uiState.update {
++                    it.copy(
++                        currentBook = book,
++                        currentChapter = validChapter,
++                        verses = versesList,
++                        chapterPericopas = pericopasMap,
++                        chapterOfficialNotes = notesMap,
++                        chapterCompendioVerses = compendioVerses,
++                        selectedVerse = null,
++                        showBookSelector = false
++                    )
++                }
++                repository.saveLastPosition(book.id, validChapter, 1)
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (error: Exception) { reportError(error) }
+         }
+     }
+ 
+@@ -445,125 +497,105 @@
+ 
+     fun openCompendioForVerse(verse: Verse) {
+         val book = _uiState.value.currentBook ?: return
+-        _uiState.update {
+-            it.copy(
+-                showVerseCompendioDialog = true,
+-                verseCompendioTargetVerse = verse,
+-                isCompendioLoading = true,
+-                verseCompendioItems = emptyList()
+-            )
+-        }
+-        viewModelScope.launch {
++        _uiState.update { it.copy(showVerseCompendioDialog = true,
++            verseCompendioTargetVerse = verse, verseCompendioItems = emptyList()) }
++        loadCompendio {
+             val items = repository.getCompendioForVerse(book.id, verse.chapter, verse.verse)
+-            _uiState.update {
+-                it.copy(
+-                    verseCompendioItems = items,
+-                    isCompendioLoading = false
+-                )
+-            }
++            currentCoroutineContext().ensureActive()
++            _uiState.update { it.copy(verseCompendioItems = items) }
+         }
+     }
+ 
+     fun closeVerseCompendio() {
+-        _uiState.update {
+-            it.copy(
+-                showVerseCompendioDialog = false,
+-                verseCompendioTargetVerse = null,
+-                verseCompendioItems = emptyList(),
+-                isCompendioLoading = false
+-            )
+-        }
++        compendioJob?.cancel()
++        selectCompendioItem(null)
++        _uiState.update { it.copy(showVerseCompendioDialog = false,
++            verseCompendioTargetVerse = null, verseCompendioItems = emptyList(), isCompendioLoading = false) }
+     }
+ 
+     fun openGeneralCompendio() {
+-        _uiState.update {
+-            it.copy(
+-                showGeneralCompendioDialog = true,
+-                isCompendioLoading = true,
+-                compendioSelectedBook = null,
+-                compendioBookTeachings = emptyList(),
+-                compendioSearchQuery = "",
+-                compendioSearchResults = emptyList(),
+-                selectedCompendioItem = null
+-            )
+-        }
+-        viewModelScope.launch {
+-            val booksWithCounts = repository.getCanonicalBooksWithCompendio()
+-            val thematicList = repository.getThematicCompendio()
+-            _uiState.update {
+-                it.copy(
+-                    compendioBooksWithCounts = booksWithCounts,
+-                    compendioThematicTeachings = thematicList,
+-                    isCompendioLoading = false
+-                )
+-            }
++        closeVerseCompendio()
++        compendioSearchJob?.cancel()
++        _uiState.update { it.copy(showGeneralCompendioDialog = true,
++            compendioSelectedBook = null, compendioBookTeachings = emptyList(),
++            compendioSearchQuery = "", compendioSearchResults = emptyList(),
++            compendioThematicTeachings = emptyList(), compendioThematicPage = 0,
++            compendioThematicHasNext = false) }
++        loadCompendio {
++            val books = repository.getCanonicalBooksWithCompendio()
++            val total = repository.getThematicCompendioCount()
++            val page = repository.getThematicCompendio()
++            currentCoroutineContext().ensureActive()
++            _uiState.update { it.copy(compendioBooksWithCounts = books,
++                compendioThematicTeachings = page, compendioThematicTotal = total,
++                compendioThematicHasNext = page.size < total) }
+         }
+     }
+ 
+     fun closeGeneralCompendio() {
+-        _uiState.update {
+-            it.copy(
+-                showGeneralCompendioDialog = false,
+-                compendioSelectedBook = null,
+-                compendioBookTeachings = emptyList(),
+-                selectedCompendioItem = null,
+-                compendioSearchQuery = "",
+-                compendioSearchResults = emptyList()
+-            )
+-        }
++        compendioJob?.cancel()
++        compendioSearchJob?.cancel()
++        selectCompendioItem(null)
++        _uiState.update { it.copy(showGeneralCompendioDialog = false,
++            isCompendioLoading = false, compendioSelectedBook = null,
++            compendioBookTeachings = emptyList(), compendioThematicTeachings = emptyList(),
++            compendioSearchQuery = "", compendioSearchResults = emptyList()) }
+     }
+ 
+     fun selectCompendioBook(book: Book?) {
+-        if (book == null) {
+-            _uiState.update {
+-                it.copy(
+-                    compendioSelectedBook = null,
+-                    compendioBookTeachings = emptyList()
+-                )
+-            }
+-            return
+-        }
+-        _uiState.update {
+-            it.copy(
+-                compendioSelectedBook = book,
+-                isCompendioLoading = true
+-            )
+-        }
+-        viewModelScope.launch {
++        compendioJob?.cancel()
++        _uiState.update { it.copy(compendioSelectedBook = book,
++            compendioBookTeachings = emptyList(), isCompendioLoading = false) }
++        if (book == null) return
++        loadCompendio {
+             val teachings = repository.getCompendioForBook(book.id)
+-            _uiState.update {
+-                it.copy(
+-                    compendioBookTeachings = teachings,
+-                    isCompendioLoading = false
+-                )
+-            }
++            currentCoroutineContext().ensureActive()
++            _uiState.update { it.copy(compendioBookTeachings = teachings) }
++        }
++    }
++
++    fun loadThematicPage(page: Int) {
++        if (page < 0 || _uiState.value.isCompendioLoading) return
++        loadCompendio {
++            val teachings = repository.getThematicCompendio(offset = page * 200)
++            currentCoroutineContext().ensureActive()
++            _uiState.update { it.copy(compendioThematicPage = page,
++                compendioThematicTeachings = teachings, compendioThematicHasNext = page * 200 + teachings.size < it.compendioThematicTotal) }
+         }
+     }
+ 
+     fun searchCompendio(query: String) {
+-        _uiState.update { it.copy(compendioSearchQuery = query) }
+-        if (query.trim().length < 2) {
+-            _uiState.update { it.copy(compendioSearchResults = emptyList()) }
+-            return
+-        }
+-        viewModelScope.launch {
+-            val results = repository.searchCompendioGlobal(query.trim())
+-            _uiState.update { it.copy(compendioSearchResults = results) }
++        compendioSearchJob?.cancel()
++        _uiState.update { it.copy(compendioSearchQuery = query, compendioSearchResults = emptyList()) }
++        if (query.trim().length < 2) return
++        compendioSearchJob = viewModelScope.launch {
++            try {
++                delay(300)
++                val results = repository.searchCompendioGlobal(query.trim())
++                currentCoroutineContext().ensureActive()
++                _uiState.update { it.copy(compendioSearchResults = results) }
++            } catch (cancelled: CancellationException) { throw cancelled }
++            catch (error: Exception) { reportError(error) }
+         }
+     }
+ 
+     fun selectCompendioItem(item: CompendioItem?) {
+-        if (item == null) {
+-            _uiState.update { it.copy(selectedCompendioItem = null) }
+-            return
+-        }
+-        if (item.transcripcion.isNotBlank()) {
+-            _uiState.update { it.copy(selectedCompendioItem = item) }
+-            return
+-        }
+-        viewModelScope.launch {
+-            val detailedItem = repository.getCompendioItemDetail(item.id) ?: item
+-            _uiState.update { it.copy(selectedCompendioItem = detailedItem) }
++        compendioDetailJob?.cancel()
++        _uiState.update { it.copy(selectedCompendioItem = null, isCompendioDetailLoading = item != null) }
++        if (item == null) return
++        compendioDetailJob = viewModelScope.launch {
++            try {
++                val detail = repository.getCompendioItemDetail(item.id)
++                    ?: error("La enseñanza ya no está disponible")
++                currentCoroutineContext().ensureActive()
++                _uiState.update { it.copy(selectedCompendioItem = detail) }
++            } catch (cancelled: CancellationException) { throw cancelled }
++            catch (error: Exception) { reportError(error) }
++            finally {
++                if (currentCoroutineContext().isActive) {
++                    _uiState.update { it.copy(isCompendioDetailLoading = false) }
++                }
++            }
+         }
+     }
+ 
+--- antes/app/src/main/kotlin/org/idmji/biblia/data/BibleRepository.kt
++++ despues/app/src/main/kotlin/org/idmji/biblia/data/BibleRepository.kt
+@@ -2,6 +2,8 @@
+ 
+ import android.content.Context
+ import android.content.SharedPreferences
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.asStateFlow
+@@ -18,7 +20,8 @@
+ import org.idmji.biblia.model.Verse
+ 
+ class BibleRepository(context: Context) {
+-    private val dbHelper = BibleDatabaseHelper.getInstance(context)
++    private val appContext = context.applicationContext
++    private val dbHelper by lazy { BibleDatabaseHelper.getInstance(appContext) }
+     private val prefs: SharedPreferences = context.getSharedPreferences("biblia_idmji_prefs", Context.MODE_PRIVATE)
+ 
+     private val _settings = MutableStateFlow(loadSettings())
+@@ -48,74 +51,61 @@
+             .apply()
+     }
+ 
+-    suspend fun getBooks(): List<Book> = dbHelper.getBooks()
++    suspend fun getBooks(): List<Book> = withContext(Dispatchers.IO) { dbHelper.getBooks() }
+ 
+-    suspend fun getVerses(bookId: Int, chapter: Int): List<Verse> = dbHelper.getVerses(bookId, chapter)
++    suspend fun getVerses(bookId: Int, chapter: Int): List<Verse> = withContext(Dispatchers.IO) { dbHelper.getVerses(bookId, chapter) }
+ 
+-    suspend fun searchVerses(query: String): List<SearchResult> = dbHelper.searchVerses(query)
++    suspend fun searchVerses(query: String): List<SearchResult> = withContext(Dispatchers.IO) { dbHelper.searchVerses(query) }
+ 
+-    suspend fun setHighlight(bookId: Int, chapter: Int, verse: Int, colorHex: String?) {
++    suspend fun setHighlight(bookId: Int, chapter: Int, verse: Int, colorHex: String?) = withContext(Dispatchers.IO) {
+         dbHelper.setHighlight(bookId, chapter, verse, colorHex)
+     }
+ 
+-    suspend fun saveNote(bookId: Int, chapter: Int, verse: Int, note: String) {
++    suspend fun saveNote(bookId: Int, chapter: Int, verse: Int, note: String) = withContext(Dispatchers.IO) {
+         dbHelper.saveNote(bookId, chapter, verse, note)
+     }
+ 
+-    suspend fun saveLastPosition(bookId: Int, chapter: Int, verse: Int) {
++    suspend fun saveLastPosition(bookId: Int, chapter: Int, verse: Int) = withContext(Dispatchers.IO) {
+         dbHelper.saveLastPosition(bookId, chapter, verse)
+     }
+ 
+-    suspend fun getLastPosition(): Triple<Int, Int, Int> = dbHelper.getLastPosition()
++    suspend fun getLastPosition(): Triple<Int, Int, Int> = withContext(Dispatchers.IO) { dbHelper.getLastPosition() }
+ 
+-    suspend fun getDictionaryLetters(): List<DictionaryLetter> = dbHelper.getDictionaryLetters()
++    suspend fun getDictionaryLetters(): List<DictionaryLetter> = withContext(Dispatchers.IO) { dbHelper.getDictionaryLetters() }
+ 
+-    suspend fun getDictionaryEntries(letter: String? = null, query: String? = null, limit: Int = 500): List<DictionaryEntry> =
+-        dbHelper.getDictionaryEntries(letter, query, limit)
++    suspend fun getDictionaryEntries(letter: String? = null, query: String? = null, limit: Int = 500): List<DictionaryEntry> = withContext(Dispatchers.IO) { dbHelper.getDictionaryEntries(letter, query, limit) }
+ 
+-    suspend fun getDictionaryEntry(id: Int): DictionaryEntry? = dbHelper.getDictionaryEntry(id)
++    suspend fun getDictionaryEntry(id: Int): DictionaryEntry? = withContext(Dispatchers.IO) { dbHelper.getDictionaryEntry(id) }
+ 
+-    suspend fun getDictionaryEntriesForWords(words: List<String>): List<DictionaryEntry> =
+-        dbHelper.getDictionaryEntriesForWords(words)
++    suspend fun getDictionaryEntriesForWords(words: List<String>): List<DictionaryEntry> = withContext(Dispatchers.IO) { dbHelper.getDictionaryEntriesForWords(words) }
+ 
+-    suspend fun getPericopasForChapter(bookId: Int, chapter: Int): Map<Int, Pericopa> =
+-        dbHelper.getPericopasForChapter(bookId, chapter)
++    suspend fun getPericopasForChapter(bookId: Int, chapter: Int): Map<Int, Pericopa> = withContext(Dispatchers.IO) { dbHelper.getPericopasForChapter(bookId, chapter) }
+ 
+-    suspend fun getOfficialNotesForChapter(bookId: Int, chapter: Int): Map<Int, String> =
+-        dbHelper.getOfficialNotesForChapter(bookId, chapter)
++    suspend fun getOfficialNotesForChapter(bookId: Int, chapter: Int): Map<Int, String> = withContext(Dispatchers.IO) { dbHelper.getOfficialNotesForChapter(bookId, chapter) }
+ 
+-    suspend fun getOfficialNoteForVerse(bookId: Int, chapter: Int, verse: Int): String? =
+-        dbHelper.getOfficialNoteForVerse(bookId, chapter, verse)
++    suspend fun getOfficialNoteForVerse(bookId: Int, chapter: Int, verse: Int): String? = withContext(Dispatchers.IO) { dbHelper.getOfficialNoteForVerse(bookId, chapter, verse) }
+ 
+-    suspend fun getPericopaForVerse(bookId: Int, chapter: Int, verse: Int): Pericopa? =
+-        dbHelper.getPericopaForVerse(bookId, chapter, verse)
++    suspend fun getPericopaForVerse(bookId: Int, chapter: Int, verse: Int): Pericopa? = withContext(Dispatchers.IO) { dbHelper.getPericopaForVerse(bookId, chapter, verse) }
+ 
+-    suspend fun getTskReferencesForVerse(bookId: Int, chapter: Int, verse: Int, limit: Int = 15): List<CrossReference> =
+-        dbHelper.getTskReferencesForVerse(bookId, chapter, verse, limit)
++    suspend fun getTskReferencesForVerse(bookId: Int, chapter: Int, verse: Int, limit: Int = 15): List<CrossReference> = withContext(Dispatchers.IO) { dbHelper.getTskReferencesForVerse(bookId, chapter, verse, limit) }
+ 
+-    suspend fun parseAndResolveOfficialNote(noteText: String): List<ResolvedReference> =
+-        dbHelper.parseAndResolveOfficialNote(noteText)
++    suspend fun parseAndResolveOfficialNote(noteText: String): List<ResolvedReference> = withContext(Dispatchers.IO) { dbHelper.parseAndResolveOfficialNote(noteText) }
+ 
+-    fun getBookName(bookId: Int): String = dbHelper.getBookName(bookId)
++    suspend fun getBookName(bookId: Int): String = withContext(Dispatchers.IO) { dbHelper.getBookName(bookId) }
+ 
+-    suspend fun getCompendioForVerse(bookId: Int, chapter: Int, verse: Int): List<CompendioItem> =
+-        dbHelper.getCompendioForVerse(bookId, chapter, verse)
++    suspend fun getCompendioForVerse(bookId: Int, chapter: Int, verse: Int): List<CompendioItem> = withContext(Dispatchers.IO) { dbHelper.getCompendioForVerse(bookId, chapter, verse) }
+ 
+-    suspend fun getCompendioVersesForChapter(bookId: Int, chapter: Int): Set<Int> =
+-        dbHelper.getCompendioVersesForChapter(bookId, chapter)
++    suspend fun getCompendioVersesForChapter(bookId: Int, chapter: Int): Set<Int> = withContext(Dispatchers.IO) { dbHelper.getCompendioVersesForChapter(bookId, chapter) }
+ 
+-    suspend fun getCanonicalBooksWithCompendio(): List<Pair<Book, Int>> =
+-        dbHelper.getCanonicalBooksWithCompendio()
++    suspend fun getCanonicalBooksWithCompendio(): List<Pair<Book, Int>> = withContext(Dispatchers.IO) { dbHelper.getCanonicalBooksWithCompendio() }
+ 
+-    suspend fun getCompendioForBook(bookId: Int): List<CompendioItem> =
+-        dbHelper.getCompendioForBook(bookId)
++    suspend fun getCompendioForBook(bookId: Int): List<CompendioItem> = withContext(Dispatchers.IO) { dbHelper.getCompendioForBook(bookId) }
+ 
+-    suspend fun getThematicCompendio(query: String = ""): List<CompendioItem> =
+-        dbHelper.getThematicCompendio(query)
++    suspend fun getThematicCompendioCount(): Int = withContext(Dispatchers.IO) { dbHelper.getThematicCompendioCount() }
+ 
+-    suspend fun searchCompendioGlobal(query: String): List<CompendioItem> =
+-        dbHelper.searchCompendioGlobal(query)
++    suspend fun getThematicCompendio(query: String = "", offset: Int = 0): List<CompendioItem> = withContext(Dispatchers.IO) { dbHelper.getThematicCompendio(query, offset) }
+ 
+-    suspend fun getCompendioItemDetail(id: Int): CompendioItem? =
+-        dbHelper.getCompendioItemDetail(id)
++    suspend fun searchCompendioGlobal(query: String): List<CompendioItem> = withContext(Dispatchers.IO) { dbHelper.searchCompendioGlobal(query) }
++
++    suspend fun getCompendioItemDetail(id: Int): CompendioItem? = withContext(Dispatchers.IO) { dbHelper.getCompendioItemDetail(id) }
+ }
+--- antes/app/src/main/kotlin/org/idmji/biblia/data/BibleDatabaseHelper.kt
++++ despues/app/src/main/kotlin/org/idmji/biblia/data/BibleDatabaseHelper.kt
+@@ -15,7 +15,6 @@
+ import org.idmji.biblia.model.ResolvedReference
+ import org.idmji.biblia.model.SearchResult
+ import org.idmji.biblia.model.Verse
+-import java.io.File
+ import java.io.FileOutputStream
+ import java.text.Normalizer
+ 
+@@ -79,100 +78,20 @@
+     }
+ 
+     private fun ensureDatabaseCopied() {
+-        val dbFile = context.getDatabasePath(DB_NAME)
+-        if (!dbFile.exists()) {
+-            dbFile.parentFile?.mkdirs()
++        AssetDatabaseInstaller.install(context.getDatabasePath(DB_NAME), DB_VERSION) { destination ->
+             context.assets.open(DB_NAME).use { input ->
+-                FileOutputStream(dbFile).use { output ->
++                FileOutputStream(destination).use { output ->
+                     input.copyTo(output)
++                    output.fd.sync()
+                 }
+             }
+-        } else {
+-            // Verificar si la base de datos instalada tiene las tablas de referencias y compendio
+-            var hasReferencias = false
+-            var hasCompendio = false
+-            try {
+-                val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+-                val cursor = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='referencias_cruzadas'", null)
+-                hasReferencias = cursor.use { it.moveToFirst() }
+-                val cComp = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='compendio_idmji'", null)
+-                hasCompendio = cComp.use { it.moveToFirst() }
+-                db.close()
+-            } catch (_: Exception) {
+-                hasReferencias = false
+-                hasCompendio = false
+-            }
+-
+-            if (!hasReferencias || !hasCompendio) {
+-                // Preservar marcadores e historial del usuario
+-                val marcadores = mutableListOf<ContentValues>()
+-                val historial = mutableListOf<ContentValues>()
+-                try {
+-                    val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+-                    val mCursor = db.rawQuery("SELECT libro_id, capitulo, versiculo, color, nota FROM marcadores", null)
+-                    mCursor.use {
+-                        while (it.moveToNext()) {
+-                            val cv = ContentValues()
+-                            cv.put("libro_id", it.getInt(0))
+-                            cv.put("capitulo", it.getInt(1))
+-                            cv.put("versiculo", it.getInt(2))
+-                            if (!it.isNull(3)) cv.put("color", it.getString(3))
+-                            if (!it.isNull(4)) cv.put("nota", it.getString(4))
+-                            marcadores.add(cv)
+-                        }
+-                    }
+-                    val hCursor = db.rawQuery("SELECT id, libro_id, capitulo, versiculo FROM historial", null)
+-                    hCursor.use {
+-                        while (it.moveToNext()) {
+-                            val cv = ContentValues()
+-                            cv.put("id", it.getInt(0))
+-                            cv.put("libro_id", it.getInt(1))
+-                            cv.put("capitulo", it.getInt(2))
+-                            cv.put("versiculo", it.getInt(3))
+-                            historial.add(cv)
+-                        }
+-                    }
+-                    db.close()
+-                } catch (_: Exception) {}
+-
+-                // Sobrescribir con la base de datos de assets que contiene la tabla diccionario
+-                context.assets.open(DB_NAME).use { input ->
+-                    FileOutputStream(dbFile).use { output ->
+-                        input.copyTo(output)
+-                    }
+-                }
+-
+-                // Restaurar marcadores e historial
+-                try {
+-                    val newDb = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+-                    newDb.beginTransaction()
+-                    try {
+-                        for (cv in marcadores) {
+-                            newDb.insertWithOnConflict("marcadores", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+-                        }
+-                        for (cv in historial) {
+-                            newDb.insertWithOnConflict("historial", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+-                        }
+-                        newDb.setTransactionSuccessful()
+-                    } finally {
+-                        newDb.endTransaction()
+-                        newDb.close()
+-                    }
+-                } catch (_: Exception) {}
+-            }
+-        }
+-    }
+-
+-    override fun onCreate(db: SQLiteDatabase) {
+-        // La base de datos viene preempaquetada en assets
+-    }
++        }
++    }
++
++    override fun onCreate(db: SQLiteDatabase) = Unit
+ 
+     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+-        // En caso de actualización de versión
+-    }
+-
+-    override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+-        // Permitir downgrade silencioso sin error
++        error("La actualización debe completarse antes de abrir la base de datos")
+     }
+ 
+     suspend fun getBooks(): List<Book> = withContext(Dispatchers.IO) {
+@@ -585,15 +504,15 @@
+         list
+     }
+ 
+-    fun getBookName(bookId: Int): String {
++    suspend fun getBookName(bookId: Int): String = withContext(Dispatchers.IO) {
+         val db = readableDatabase
+         val cursor = db.rawQuery("SELECT nombre FROM libros WHERE id = ?", arrayOf(bookId.toString()))
+-        return cursor.use {
++        return@withContext cursor.use {
+             if (it.moveToFirst()) it.getString(0) else "Libro $bookId"
+         }
+     }
+ 
+-    fun resolvePassageText(db: SQLiteDatabase, bookId: Int, chapter: Int, startVerse: Int, endVerse: Int): String {
++    private fun resolvePassageText(db: SQLiteDatabase, bookId: Int, chapter: Int, startVerse: Int, endVerse: Int): String {
+         val cursor = db.rawQuery(
+             "SELECT versiculo, texto FROM versiculos WHERE libro_id = ? AND capitulo = ? AND versiculo >= ? AND versiculo <= ? ORDER BY versiculo",
+             arrayOf(bookId.toString(), chapter.toString(), startVerse.toString(), endVerse.toString())
+@@ -636,12 +555,12 @@
+         )
+     }
+ 
+-    fun getCompendioForVerse(bookId: Int, chapter: Int, verse: Int): List<CompendioItem> {
++    suspend fun getCompendioForVerse(bookId: Int, chapter: Int, verse: Int): List<CompendioItem> = withContext(Dispatchers.IO) {
+         val db = readableDatabase
+         val cursor = db.rawQuery(
+             """
+             SELECT c.id, c.tipo, c.libro_id, l.nombre, c.capitulo, c.versiculo_inicio, c.versiculo_fin,
+-                   c.cita, c.titulo, c.video_url, c.video_id, c.seccion, c.transcripcion
++                   c.cita, c.titulo, c.video_url, c.video_id, c.seccion, '' as transcripcion
+             FROM compendio_idmji c
+             LEFT JOIN libros l ON c.libro_id = l.id
+             WHERE c.tipo = 'CANONICO' AND c.libro_id = ? AND c.capitulo = ? AND ? BETWEEN c.versiculo_inicio AND c.versiculo_fin
+@@ -655,10 +574,10 @@
+                 list.add(cursorToCompendioItem(it))
+             }
+         }
+-        return list
+-    }
+-
+-    fun getCompendioVersesForChapter(bookId: Int, chapter: Int): Set<Int> {
++        return@withContext list
++    }
++
++    suspend fun getCompendioVersesForChapter(bookId: Int, chapter: Int): Set<Int> = withContext(Dispatchers.IO) {
+         val db = readableDatabase
+         val cursor = db.rawQuery(
+             "SELECT versiculo_inicio, versiculo_fin FROM compendio_idmji WHERE tipo = 'CANONICO' AND libro_id = ? AND capitulo = ?",
+@@ -685,10 +604,10 @@
+                 }
+             }
+         }
+-        return verseSet
+-    }
+-
+-    fun getCanonicalBooksWithCompendio(): List<Pair<Book, Int>> {
++        return@withContext verseSet
++    }
++
++    suspend fun getCanonicalBooksWithCompendio(): List<Pair<Book, Int>> = withContext(Dispatchers.IO) {
+         val db = readableDatabase
+         val cursor = db.rawQuery(
+             """
+@@ -716,10 +635,10 @@
+                 list.add(Pair(book, count))
+             }
+         }
+-        return list
+-    }
+-
+-    fun getCompendioForBook(bookId: Int): List<CompendioItem> {
++        return@withContext list
++    }
++
++    suspend fun getCompendioForBook(bookId: Int): List<CompendioItem> = withContext(Dispatchers.IO) {
+         val db = readableDatabase
+         val cursor = db.rawQuery(
+             """
+@@ -738,10 +657,17 @@
+                 list.add(cursorToCompendioItem(it))
+             }
+         }
+-        return list
+-    }
+-
+-    fun getThematicCompendio(query: String = ""): List<CompendioItem> {
++        return@withContext list
++    }
++
++    suspend fun getThematicCompendioCount(): Int = withContext(Dispatchers.IO) {
++        readableDatabase.rawQuery("SELECT COUNT(*) FROM compendio_idmji WHERE tipo = 'TEMATICO'", null).use {
++            check(it.moveToFirst())
++            it.getInt(0)
++        }
++    }
++
++    suspend fun getThematicCompendio(query: String = "", offset: Int = 0): List<CompendioItem> = withContext(Dispatchers.IO) {
+         val db = readableDatabase
+         val sql = if (query.isBlank()) {
+             """
+@@ -750,6 +676,7 @@
+             FROM compendio_idmji c
+             WHERE c.tipo = 'TEMATICO'
+             ORDER BY c.id ASC
++            LIMIT 200 OFFSET ?
+             """.trimIndent()
+         } else {
+             """
+@@ -758,9 +685,10 @@
+             FROM compendio_idmji c
+             WHERE c.tipo = 'TEMATICO' AND (c.titulo LIKE ? OR c.seccion LIKE ?)
+             ORDER BY c.id ASC
++            LIMIT 200 OFFSET ?
+             """.trimIndent()
+         }
+-        val args = if (query.isBlank()) null else arrayOf("%$query%", "%$query%")
++        val args = if (query.isBlank()) arrayOf(offset.coerceAtLeast(0).toString()) else arrayOf("%$query%", "%$query%", offset.coerceAtLeast(0).toString())
+         val cursor = db.rawQuery(sql, args)
+         val list = mutableListOf<CompendioItem>()
+         cursor.use {
+@@ -768,11 +696,11 @@
+                 list.add(cursorToCompendioItem(it))
+             }
+         }
+-        return list
+-    }
+-
+-    fun searchCompendioGlobal(query: String): List<CompendioItem> {
+-        if (query.isBlank()) return emptyList()
++        return@withContext list
++    }
++
++    suspend fun searchCompendioGlobal(query: String): List<CompendioItem> = withContext(Dispatchers.IO) {
++        if (query.isBlank()) return@withContext emptyList()
+         val db = readableDatabase
+         val cursor = db.rawQuery(
+             """
+@@ -792,10 +720,10 @@
+                 list.add(cursorToCompendioItem(it))
+             }
+         }
+-        return list
+-    }
+-
+-    fun getCompendioItemDetail(id: Int): CompendioItem? {
++        return@withContext list
++    }
++
++    suspend fun getCompendioItemDetail(id: Int): CompendioItem? = withContext(Dispatchers.IO) {
+         val db = readableDatabase
+         val cursor = db.rawQuery(
+             """
+@@ -807,7 +735,7 @@
+             """.trimIndent(),
+             arrayOf(id.toString())
+         )
+-        return cursor.use {
++        return@withContext cursor.use {
+             if (it.moveToFirst()) cursorToCompendioItem(it) else null
+         }
+     }

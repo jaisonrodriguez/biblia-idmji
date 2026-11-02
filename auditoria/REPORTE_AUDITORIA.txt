@@ -1,0 +1,209 @@
+AUDITORÍA TÉCNICA — BIBLIA IDMJI
+Fecha: 2026-11-02
+Proyecto: /home/rocua/Proyectos/IDMJI/Biblia_Android
+Dictamen: NO APTO PARA PUBLICACIÓN con el estado examinado.
+
+ALCANCE Y MÉTODO
+Se leyó README.md y se contrastaron sus compromisos con código Kotlin, manifiesto,
+consultas sqlite3 en modo de solo lectura, análisis completo de timestamps y dos
+intentos de assembleDebug. No se modificó el código funcional ni el asset.
+Las evidencias y scripts reproducibles están en esta carpeta. No se ejecutó la app
+en un emulador o teléfono; no se afirman mediciones de ANR, heap ni reproducción
+real de YouTube. Los defectos de ejecución señalados derivan del flujo de código.
+
+RESUMEN POR FASE
+1. SQLite: APROBADA para integridad, versión del asset, conteos y casos pedidos.
+2. Concurrencia: NO APROBADA; las consultas del compendio alcanzan Main.
+3. Memoria: PARCIAL; tres listados livianos y largeHeap correctos, pero listado
+   temático ilimitado y lectura anticipada de transcripciones por versículo.
+4. UX/migración: NO APROBADA; falta formato horario y migración por versión segura.
+5. Build: NO CERTIFICABLE; ambos intentos fallaron por restricciones del entorno.
+
+FASE 1 — INTEGRIDAD Y MODELO SQLITE
+Evidencias: verificar.sql, sqlite-resultados.txt y timestamps-resultados.json.
+Comando ejecutado desde la raíz del proyecto:
+  sqlite3 -readonly app/src/main/assets/biblia_rvr1960.db < auditoria/verificar.sql
+Resultados reales:
+  PRAGMA integrity_check; -> ok
+  PRAGMA user_version; -> 2
+  CANONICO -> 5.141; TEMATICO -> 3.115; TOTAL -> 8.256
+  libros -> 66 registros, IDs 1 a 66.
+  CANONICO con libro_id nulo, fuera de 1..66 o sin coincidencia en libros -> 0.
+  PRAGMA foreign_key_check; -> sin filas.
+  PRAGMA foreign_key_list(compendio_idmji); -> sin filas.
+La integridad referencial actual se comprobó mediante LEFT JOIN explícito. El
+resultado vacío de foreign_key_check no garantiza el vínculo: la tabla compendio
+no declara FOREIGN KEY. Tampoco declara CHECK para tipo/rango de libro.
+
+Casos exactos encontrados (versiculo_inicio = versiculo_fin):
+  id 3876: Mateo 9:22; libro_id=40, capitulo=9, inicio=22, fin=22.
+  id 4230: Marcos 10:52; libro_id=41, capitulo=10, inicio=52, fin=52.
+  Ambos contienen 29 marcas válidas. Primera marca:
+  [[01:06:57]](https://www.youtube.com/watch?v=X3IFaTH0huk&t=4017s)
+  Segunda marca: 01:07:12, t=4032s. Son el mismo segmento de video asociado a
+  dos pasajes; esa coincidencia, por sí sola, no prueba un duplicado incorrecto.
+Se comprobó también el filtro BETWEEN usado por la app: devuelve 8 entradas para
+Mateo 9:22 y 3 para Marcos 10:52, incluyendo entradas generales de capítulo 1..999.
+Esto amplía el contenido más allá de la promesa de asociaciones de versículo exacto.
+
+Análisis de todas las transcripciones mediante verificar_timestamps.py:
+  721.967 marcas reconocidas: 422.826 mm:ss y 299.141 hh:mm:ss.
+  0 tiempos fuera de rango, 0 hosts ajenos a YouTube, 0 diferencias entre el
+  tiempo mostrado y el parámetro t=Xs, 0 diferencias con video_id del registro.
+  0 registros sin marcas; 4.483 registros tienen al menos una marca horaria.
+Estos controles verifican sintaxis y coherencia local; no prueban disponibilidad
+online, titularidad oficial del canal ni fidelidad doctrinal de las transcripciones.
+
+Identidad del asset examinado:
+  Tamaño: 238.125.056 bytes (227,09 MiB).
+  SHA-256: a796bc9bffae7b6aef55972e7ac1720fd3cda0ac111255a58d05047a32e2f7e5
+  Texto de transcripciones agregado: 214.798.277 bytes (204,85 MiB).
+  Mayor transcripción individual: 114.496 bytes (111,81 KiB).
+
+FASE 2 — CONCURRENCIA Y ANR
+NO APROBADA — gravedad ALTA.
+BibleRepository.kt:51-120 no contiene withContext ni Dispatchers.IO: suspend no
+cambia de hilo por sí solo. Hay una distinción relevante:
+- Las lecturas bíblicas/diccionario/referencias delegan a métodos suspend del helper
+  que sí usan withContext(Dispatchers.IO), por ejemplo helper:174,197,227,323,429,540.
+  Esas rutas sí tienen protección efectiva en el helper, aunque no explícita en
+  el repositorio como pide el criterio literal.
+- Las siete rutas del compendio delegan a funciones síncronas sin cambio de
+  dispatcher: helper:635,657,687,718,740,770,794.
+- BibleViewModel.kt:456-457,490-492,532-533,549-550,564-565 las llama mediante
+  viewModelScope.launch sin dispatcher alternativo. Por ello ejecutan consultas
+  y materialización en Main. Lo mismo ocurre al cargar indicadores del capítulo
+  en ViewModel:97,121. Es riesgo real de bloqueo; no se midió un ANR en dispositivo.
+- getBookName (repository:99, helper:584) es otra API pública síncrona de lectura.
+  Su uso interno localizado en parseAndResolveOfficialNote está bajo IO, pero
+  la API no impide que futuros consumidores la invoquen desde Main.
+
+Estados: isCompendioLoading existe (ViewModel:71), se activa antes de abrir/cargar
+(:452,:482,:529), se desactiva al completar y llega a los diálogos (Screen:379,394).
+Hay indicadores de progreso en CompendioDialog:210,370,570. Esto es correcto como
+modelado básico, pero no libera Main: el spinner puede no renderizar/animar durante
+la consulta. No hay try/finally ni estado de error en esas cargas; una excepción
+puede dejar el estado activo o terminar la corrutina con error no manejado.
+El detalle (:564) no activa un estado de carga propio. La búsqueda (:543-552)
+no tiene debounce ni cancelación; una consulta se ejecuta por cada cambio desde
+2 caracteres. Tras mover a IO, deben cancelarse/invalidarse resultados antiguos
+para evitar que una búsqueda o selección anterior sobrescriba la vigente.
+También falta cancelación/identidad de solicitudes al cerrar o cambiar capítulo.
+
+FASE 3 — MEMORIA Y CURSORWINDOW
+APROBADO: getCompendioForBook (:723), ambas ramas getThematicCompendio (:745,753)
+y searchCompendioGlobal (:776) proyectan '' as transcripcion. Los cursores se
+cierran con use. El detalle (:794-808) recupera c.transcripcion por ID.
+APROBADO: búsqueda global tiene LIMIT 100 (:781), más restrictivo que 200.
+APROBADO: AndroidManifest.xml:6 contiene android:largeHeap="true".
+NO APROBADO: getThematicCompendio (:740-768) no tiene LIMIT ni paginación en ninguna
+rama. Abrir el catálogo carga los 3.115 registros temáticos completos en metadatos.
+Los LazyColumn limitan composición visible, pero no la lista previamente cargada.
+PARCIAL: getCompendioForBook no pagina; el libro con más entradas tiene 633
+(Salmos/libro_id=19), Mateo tiene 523. Es una carga menor, pero puede paginarse.
+NO APROBADO para carga exclusivamente bajo demanda: getCompendioForVerse (:640)
+también proyecta c.transcripcion. Por eso ViewModel:560 puede abrir el detalle
+sin getCompendioItemDetail. El lector por versículo aún precarga texto completo.
+No se observó CursorWindow overflow. La mayor transcripción actual no prueba un
+riesgo inmediato por fila; evitar cargar texto en listados reduce heap y trabajo,
+pero no garantiza por sí mismo seguridad ante transcripciones futuras enormes.
+largeHeap es una configuración de margen, no una garantía contra OOM.
+
+FASE 4 — COMPOSE, ENLACES Y MIGRACIÓN
+4.1 Parser: NO APROBADO — gravedad ALTA.
+CompendioDialog.kt:939 usa:
+  \[\[(\d{1,2}:\d{2})\]\]\((https?://[^\)]+)\)
+Solo admite mm:ss. Las 299.141 marcas hh:mm:ss no producen chips; ambos casos
+exactos solicitados generan CERO coincidencias con el patrón actual (29/29 marcas
+horarias por caso). Permanecen visibles como texto con su sintaxis de enlace.
+Recomendación concreta para la parte horaria:
+  \d{1,2}:\d{2}(?::\d{2})?
+Además, regex.find por línea (:947) solo procesa la primera marca y substring
+(:951) descarta cualquier prefijo anterior a ella. Usar tokenización de todos los
+fragmentos si se admiten líneas con varias marcas o texto antes de la primera.
+
+4.2 Clics: APROBADO ESTÁTICAMENTE para las marcas que reconoce el parser.
+:950 extrae la URL del tag; :962 invoca onTimestampClick(videoUrl); :908 llama a
+openOfficialVideo; :85-95 crea Intent.ACTION_VIEW con Uri.parse(url) y startActivity.
+El parámetro &t=Xs proviene del asset y se conserva, sin recalcularlo en la UI.
+Los 721.967 tags analizados contienen t correcto y video_id coherente. Se maneja
+URL vacía y fallo al abrir con Toast. ACTION_VIEW permite resolución a YouTube o
+navegador; no garantiza elegir la app YouTube. No se hizo prueba instrumentada
+ni se verificó la titularidad oficial de cada video en Internet.
+
+4.3 Versionado: NO APROBADO — gravedad CRÍTICA.
+Helper:26 declara DB_VERSION=1, pero el asset real tiene user_version=2.
+El constructor copia ese archivo (:72-74,:81-89); getBooks intenta abrirlo (:176).
+SQLiteOpenHelper detecta una versión instalada mayor que la solicitada y ejecuta
+onDowngrade. No hay override; la implementación estándar lanza SQLiteException
+("Can't downgrade database from version 2 to 1"). Se deduce un fallo de apertura
+en instalación limpia de este código con este asset. No se reprodujo en Android.
+No debe confundirse con corrupción: integrity_check del asset es correcto.
+
+4.4 Preservación: PARCIAL en una ruta, INSUFICIENTE para actualizar versiones.
+ensureDatabaseCopied (:91-106) solo comprueba existencia de referencias_cruzadas
+y compendio_idmji; NO compara versiones. Si ambas tablas existen, un asset nuevo
+no se instala. onUpgrade (:170-172) está vacío.
+Si falta una tabla, sí respalda libro/capítulo/versículo/color/nota de marcadores
+y posición de historial (:107-135), copia el asset (:138-143) y restaura ambas
+tablas con una transacción (:145-161). Esa intención de preservación es real.
+Sin embargo, no preserva id ni fecha_creacion de marcadores, ni fecha_actualizacion
+de historial; silencian errores de respaldo/restauración (:136,161), no verifican
+el resultado de insertWithOnConflict y sobrescriben directamente el archivo sin
+reemplazo atómico ni respaldo duradero. Un error parcial puede perder datos del
+usuario. La transacción de restauración no protege la copia previa del archivo.
+Además, la copia de 227 MiB y comprobaciones SQLite corren en init del helper,
+creado desde el constructor del ViewModel (repository:21, ViewModel:75). Esa ruta
+de inicio también puede bloquear Main antes de la primera corrutina.
+
+FASE 5 — BUILD REAL
+NO CERTIFICABLE. No se obtuvo BUILD SUCCESSFUL.
+1) Comando solicitado ejecutado desde la raíz: ./gradlew assembleDebug
+   Salida: auditoria/assembleDebug.log. Código de salida: 1.
+   FileNotFoundException al crear el lock en ~/.gradle/wrapper/dists/...:
+   "Sistema de archivos de solo lectura".
+2) Se copiaron caches, wrapper y native de ~/.gradle a /tmp/idmji-audit-gradle,
+   para usar un directorio escribible sin cambiar la configuración del proyecto.
+   Comando: GRADLE_USER_HOME=/tmp/idmji-audit-gradle ./gradlew assembleDebug
+   Salida: auditoria/assembleDebug-writable.log. Código de salida: 1.
+   Gradle 9.1.0 arranca, pero falla antes de tareas con:
+   "Could not create service of type FileLockContentionHandler"
+   "Could not determine a usable wildcard IP for this machine."
+   Es una limitación del entorno de ejecución restringido; no demuestra un error
+   de Kotlin. Tampoco permite certificar compilación ni empaquetado de assets.
+Existe un APK debug previo en app/build/outputs/apk/debug/app-debug.apk; su presencia
+no acredita un build realizado durante esta auditoría ni equivalencia con el código.
+
+PRIORIDADES ANTES DE PRODUCCIÓN
+P0 — Corregir DB_VERSION y definir migración por versión de contenido/esquema.
+     Probar instalación limpia y actualización con marcadores/notas/historial.
+P0 — Reemplazo seguro: copia temporal, verificación de integridad, respaldo duradero,
+     restauración verificada de todos los campos y reemplazo atómico. Interrumpir
+     la migración ante fallos y conservar recuperable el archivo anterior.
+P1 — Hacer main-safe todas las rutas de acceso al compendio con
+     withContext(Dispatchers.IO), incluida inicialización/copias; proteger estados
+     con manejo de error/finally y propagar correctamente CancellationException.
+P1 — Corregir regex horaria y probar 01:06:57 -> 4017s, mm:ss, varias marcas por
+     línea y resolución del Intent en Android con/sin YouTube instalado.
+P1 — Paginar catálogo temático (p. ej. lotes de 200 con acceso a páginas siguientes),
+     excluir transcripciones de getCompendioForVerse y evitar precarga de la
+     pestaña temática hasta que el usuario la necesite.
+P2 — Debounce y cancelación de búsqueda; invalidar solicitudes al navegar/cerrar;
+     medir inicio, frames y heap con StrictMode/profiler en equipos modestos.
+P2 — Evaluar FTS para búsquedas: EXPLAIN muestra SCAN c USING INDEX
+     idx_compendio_tipo; LIKE '%texto%' sobre título/cita/sección no tiene búsqueda
+     textual indexada. LIMIT 100 limita salida, no garantiza trabajo constante.
+P2 — Validar constraints de dominio/relaciones en nuevas importaciones, separar
+     versión de contenido de esquema, revisar calidad editorial y asociación
+     exacta frente a entradas generales 1..999. Ajustar README a comportamiento.
+P1 — Repetir ./gradlew assembleDebug en un entorno Android/Gradle con permisos y
+     red local funcionales; luego pruebas de instalación, migración y navegación.
+     El build exitoso por sí solo no detectará el desacuerdo de versión SQLite.
+
+REFERENCIAS PRIMARIAS USADAS PARA INTERPRETAR EL CÓDIGO
+Android SQLiteOpenHelper (onDowngrade lanza excepción por defecto):
+https://developer.android.com/reference/android/database/sqlite/SQLiteOpenHelper
+Android, corrutinas y seguridad del hilo principal mediante withContext:
+https://developer.android.com/kotlin/coroutines/coroutines-adv
+Las evidencias concretas del proyecto se conservan en codigo-con-lineas.txt,
+sqlite-resultados.txt, timestamps-resultados.json y los dos logs de Gradle.

@@ -1,0 +1,30 @@
+app/src/main/kotlin/org/idmji/biblia/ui/BibleScreen.kt:157:48: warning: 'fun centerAlignedTopAppBarColors(containerColor: Color = ..., scrolledContainerColor: Color = ..., navigationIconContentColor: Color = ..., titleContentColor: Color = ..., actionIconContentColor: Color = ...): TopAppBarColors' is deprecated. Use topAppBarColors instead.
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/src/main/kotlin/org/idmji/biblia/ui/BibleScreen.kt:182:48: warning: 'val Icons.Filled.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowBack.
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Capítulo anterior", modifier = Modifier.size(16.dp))
+                                               ^^^^^^^^^
+app/src/main/kotlin/org/idmji/biblia/ui/BibleScreen.kt:202:48: warning: 'val Icons.Filled.ArrowForward: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.ArrowForward.
+                            Icon(Icons.Default.ArrowForward, contentDescription = "Capítulo siguiente", modifier = Modifier.size(16.dp))
+                                               ^^^^^^^^^^^^
+app/src/main/kotlin/org/idmji/biblia/ui/components/BookSelectorDialog.kt:192:25: warning: 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: ComposableFunction1<List<TabPosition>, Unit> = ..., divider: ComposableFunction0<Unit> = ..., tabs: ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+                        TabRow(
+                        ^^^^^^
+app/src/main/kotlin/org/idmji/biblia/ui/components/BookSelectorDialog.kt:197:46: warning: 'fun Modifier.tabIndicatorOffset(currentTabPosition: TabPosition): Modifier' is deprecated. Solely for use alongside deprecated TabRowDefaults.Indicator method. For recommended PrimaryIndicator and SecondaryIndicator methods, please use TabIndicatorScope.tabIndicatorOffset method.
+                                    Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                                             ^^^^^^^^^^^^^^^^^^
+app/src/main/kotlin/org/idmji/biblia/ui/components/CompendioDialog.kt:414:21: warning: 'fun TabRow(selectedTabIndex: Int, modifier: Modifier = ..., containerColor: Color = ..., contentColor: Color = ..., indicator: ComposableFunction1<List<TabPosition>, Unit> = ..., divider: ComposableFunction0<Unit> = ..., tabs: ComposableFunction0<Unit>): Unit' is deprecated. Replaced with PrimaryTabRow and SecondaryTabRow.
+                    TabRow(
+                    ^^^^^^
+app/src/main/kotlin/org/idmji/biblia/ui/components/CompendioDialog.kt:420:42: warning: 'fun Modifier.tabIndicatorOffset(currentTabPosition: TabPosition): Modifier' is deprecated. Solely for use alongside deprecated TabRowDefaults.Indicator method. For recommended PrimaryIndicator and SecondaryIndicator methods, please use TabIndicatorScope.tabIndicatorOffset method.
+                                Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                                         ^^^^^^^^^^^^^^^^^^
+
+KOTLIN_EXIT_CODE=0
+JUnit version 4.13.2
+......
+Time: 0,052
+
+OK (6 tests)
+
+

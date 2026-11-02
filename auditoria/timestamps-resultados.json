@@ -1,0 +1,50 @@
+{
+  "asset": "app/src/main/assets/biblia_rvr1960.db",
+  "asset_bytes": 238125056,
+  "sha256": "a796bc9bffae7b6aef55972e7ac1720fd3cda0ac111255a58d05047a32e2f7e5",
+  "counts": {
+    "tags": 721967,
+    "mmss": 422826,
+    "hhmmss": 299141,
+    "invalid_clock": 0,
+    "invalid_host": 0,
+    "missing_or_wrong_seconds": 0,
+    "video_id_mismatch": 0,
+    "records_without_tags": 0,
+    "records_with_hour_tags": 4483
+  },
+  "cases": [
+    {
+      "id": 3876,
+      "cita": "Mateo 9:22",
+      "valid_tags": 29,
+      "matched_by_current_parser": 0,
+      "first_tags": [
+        [
+          "01:06:57",
+          "https://www.youtube.com/watch?v=X3IFaTH0huk&t=4017s"
+        ],
+        [
+          "01:07:12",
+          "https://www.youtube.com/watch?v=X3IFaTH0huk&t=4032s"
+        ]
+      ]
+    },
+    {
+      "id": 4230,
+      "cita": "Marcos 10:52",
+      "valid_tags": 29,
+      "matched_by_current_parser": 0,
+      "first_tags": [
+        [
+          "01:06:57",
+          "https://www.youtube.com/watch?v=X3IFaTH0huk&t=4017s"
+        ],
+        [
+          "01:07:12",
+          "https://www.youtube.com/watch?v=X3IFaTH0huk&t=4032s"
+        ]
+      ]
+    }
+  ]
+}

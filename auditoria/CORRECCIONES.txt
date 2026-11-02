@@ -1,0 +1,75 @@
+CORRECCIONES POSTERIORES A LA AUDITORÍA — 2026-11-02
+
+Cambios aplicados
+- BibleRepository: construcción perezosa del helper dentro de withContext(IO),
+  envoltura explícita de todas las operaciones SQLite en IO. El helper garantiza
+  IO también en sus métodos suspend de compendio y getBookName.
+- DB_VERSION=2 se conserva alineado con el asset. Al comenzar esta corrección el
+  archivo ya contenía ese valor y un onDowngrade silencioso, posteriores a la
+  captura de la auditoría inicial. Se retiró ese downgrade inseguro.
+- AssetDatabaseInstaller: detecta versión, prepara una copia temporal, comprueba
+  integridad y versión del asset, conserva todas las columnas de marcadores e
+  historial con INSERT y verifica igualdad con EXCEPT en ambas direcciones.
+  No ignora errores ni degrada bases más nuevas. Consolida WAL antes de reemplazar
+  archivos cerrados; renombra con sincronización del directorio y mantiene el
+  archivo anterior .previous para recuperación si el proceso se interrumpe.
+  Columnas de usuario incompatibles abortan la migración conservando el original.
+- Todos los listados del compendio, incluido el de versículo, excluyen transcripcion.
+  Solo getCompendioItemDetail la obtiene, bajo demanda.
+- Temas: LIMIT 200 OFFSET con Anterior/Siguiente, conteo real para determinar la
+  última página y reemplazo de la página en memoria. La búsqueda conserva LIMIT 100.
+- ViewModel: cancelación de cargas anteriores, protección contra resultados
+  atrasados, debounce de búsqueda de 300 ms, manejo de errores y limpieza del
+  indicador de carga. Detalle con indicador cancelable; errores visibles en Snackbar.
+- Parser independiente: mm:ss y hh:mm:ss, múltiples marcas por línea y conservación
+  del texto anterior a la primera. Mantiene el video y recalcula t=Xs del chip;
+  solo convierte URLs HTTPS de YouTube en enlaces interactivos.
+- Detalle: LazyColumn compone solo párrafos visibles.
+- README actualizado con funcionamiento, política de versiones y verificaciones.
+
+Verificación realizada
+1. Compilación directa de todas las fuentes principales, pruebas nuevas del parser
+   y pruebas de migración usando Kotlin 2.3.20, plugin Compose y android.jar API36
+   disponibles en las cachés locales: salida 0, sin errores. Hay advertencias de
+   APIs Compose obsoletas ya presentes en los componentes.
+   Evidencias: correcciones-kotlin.log y correcciones-verificacion-local.log.
+   Script: python3 auditoria/compilar_kotlin_local.py
+   Es una verificación complementaria: usa dependencias cacheadas, no resuelve
+   la configuración Gradle y no empaqueta APK ni recursos Android.
+2. Seis pruebas JVM TranscriptionParserTest: OK (6 tests).
+   Comprueban 01:06:57 -> 4017s, minutos, parámetros y fragmentos de URL,
+   varias marcas, prefijo, texto plano, tiempos inválidos y hosts ajenos a YouTube.
+   Evidencia: correcciones-tests.log.
+3. Consultas SQL reales extraídas del código actualizado y ejecutadas contra el asset:
+   16 páginas temáticas (15 de 200 y 1 de 115), 3.115 IDs únicos; listado filtrado
+   limitado a 200; listados por versículo sin transcripción; detalle de IDs 3876 y
+   4230 conserva el contenido esperado. integrity_check=ok y user_version=2.
+   Evidencia: correcciones-sqlite.json; script verificar_correcciones.py.
+4. Se escribieron y compilaron siete pruebas Android de AssetDatabaseInstaller:
+   instalación limpia, preservación de notas/IDs/nulos/fechas/historial,
+   copia fallida, esquema incompatible, recuperación entre renombres, actualización
+   sucesiva con respaldo pendiente y rechazo de versión futura sin recopiar la actual.
+   NO ejecutadas: requieren dispositivo/emulador y un entorno Gradle operativo.
+5. Se reintentó:
+   GRADLE_USER_HOME=/tmp/idmji-audit-gradle ./gradlew assembleDebug testDebugUnitTest
+   Falló antes de ejecutar tareas: FileLockContentionHandler no pudo determinar una
+   IP comodín utilizable. Evidencia: correcciones-gradle.log. No hay BUILD SUCCESSFUL
+   ni APK nuevo certificado por esta corrección.
+
+Pendiente para certificar producción
+- Ejecutar assembleDebug, testDebugUnitTest y connectedDebugAndroidTest en un
+  entorno Android/Gradle con funcionamiento normal de red local y permisos.
+- Probar navegación, resolución de enlaces YouTube y consumo real de memoria en
+  dispositivos modestos. No se afirma ausencia de ANR/OOM sin esas mediciones.
+- Las actualizaciones de contenido empaquetado deben incrementar DB_VERSION y
+  user_version del asset juntos. Un cambio de contenido con igual versión no
+  reemplaza la base instalada. Sincronización remota/FTS son mejoras posteriores.
+- El respaldo anterior ocupa espacio hasta que se valida el siguiente inicio.
+  La preparación exige espacio para la copia temporal; ante errores se aborta.
+- El asset no se alteró: integridad y asociaciones de datos originales se mantienen.
+  Constraints adicionales, revisión editorial de transcripciones y relevancia de
+  entradas generales de capítulo siguen siendo mejoras independientes de datos.
+
+El reporte REPORTE_AUDITORIA.txt y sus evidencias describen la captura inicial,
+previa a estas correcciones. El diff de los cinco archivos principales existentes
+se conserva en correcciones.patch; las nuevas clases y pruebas están en app/src/.
