@@ -15,6 +15,7 @@ import org.idmji.biblia.model.Pericopa
 import org.idmji.biblia.model.ResolvedReference
 import org.idmji.biblia.model.SearchResult
 import org.idmji.biblia.model.Verse
+import org.idmji.biblia.sync.CompendioItemSync
 import java.io.FileOutputStream
 import java.text.Normalizer
 
@@ -740,5 +741,56 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
         return@withContext cursor.use {
             if (it.moveToFirst()) cursorToCompendioItem(it) else null
         }
+    }
+
+    suspend fun getMaxCompendioId(): Int = withContext(Dispatchers.IO) {
+        val db = readableDatabase
+        db.rawQuery("SELECT COALESCE(MAX(id), 0) FROM compendio_idmji", null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+    }
+
+    suspend fun getCompendioTotalCount(): Int = withContext(Dispatchers.IO) {
+        val db = readableDatabase
+        db.rawQuery("SELECT COUNT(*) FROM compendio_idmji", null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+    }
+
+    suspend fun insertOrUpdateCompendioItems(items: List<CompendioItemSync>): Int = withContext(Dispatchers.IO) {
+        if (items.isEmpty()) return@withContext 0
+        val db = writableDatabase
+        var inserted = 0
+        db.beginTransaction()
+        try {
+            val stmt = db.compileStatement(
+                """
+                INSERT OR REPLACE INTO compendio_idmji 
+                (id, tipo, libro_id, capitulo, versiculo_inicio, versiculo_fin, cita, titulo, video_url, video_id, seccion, transcripcion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """.trimIndent()
+            )
+            for (item in items) {
+                stmt.clearBindings()
+                stmt.bindLong(1, item.id.toLong())
+                stmt.bindString(2, item.tipo)
+                if (item.libroId != null) stmt.bindLong(3, item.libroId.toLong()) else stmt.bindNull(3)
+                if (item.capitulo != null) stmt.bindLong(4, item.capitulo.toLong()) else stmt.bindNull(4)
+                if (item.versiculoInicio != null) stmt.bindLong(5, item.versiculoInicio.toLong()) else stmt.bindNull(5)
+                if (item.versiculoFin != null) stmt.bindLong(6, item.versiculoFin.toLong()) else stmt.bindNull(6)
+                if (item.cita != null) stmt.bindString(7, item.cita) else stmt.bindNull(7)
+                stmt.bindString(8, item.titulo)
+                if (item.videoUrl != null) stmt.bindString(9, item.videoUrl) else stmt.bindNull(9)
+                if (item.videoId != null) stmt.bindString(10, item.videoId) else stmt.bindNull(10)
+                if (item.seccion != null) stmt.bindString(11, item.seccion) else stmt.bindNull(11)
+                if (item.transcripcion != null) stmt.bindString(12, item.transcripcion) else stmt.bindNull(12)
+                stmt.execute()
+                inserted++
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return@withContext inserted
     }
 }

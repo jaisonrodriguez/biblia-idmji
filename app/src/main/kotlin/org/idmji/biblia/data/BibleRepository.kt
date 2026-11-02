@@ -18,10 +18,17 @@ import org.idmji.biblia.model.ReadingTheme
 import org.idmji.biblia.model.ResolvedReference
 import org.idmji.biblia.model.SearchResult
 import org.idmji.biblia.model.Verse
+import org.idmji.biblia.sync.AppUpdateInfo
+import org.idmji.biblia.sync.GitHubUpdateService
+import org.idmji.biblia.sync.SyncResult
+import org.idmji.biblia.sync.TursoSyncService
+import org.idmji.biblia.sync.UpdateCheckResult
 
 class BibleRepository(context: Context) {
     private val appContext = context.applicationContext
     private val dbHelper by lazy { BibleDatabaseHelper.getInstance(appContext) }
+    private val tursoSyncService by lazy { TursoSyncService() }
+    private val gitHubUpdateService by lazy { GitHubUpdateService() }
     private val prefs: SharedPreferences = context.getSharedPreferences("biblia_idmji_prefs", Context.MODE_PRIVATE)
 
     private val _settings = MutableStateFlow(loadSettings())
@@ -108,4 +115,39 @@ class BibleRepository(context: Context) {
     suspend fun searchCompendioGlobal(query: String): List<CompendioItem> = withContext(Dispatchers.IO) { dbHelper.searchCompendioGlobal(query) }
 
     suspend fun getCompendioItemDetail(id: Int): CompendioItem? = withContext(Dispatchers.IO) { dbHelper.getCompendioItemDetail(id) }
+
+    suspend fun getMaxCompendioId(): Int = withContext(Dispatchers.IO) { dbHelper.getMaxCompendioId() }
+
+    suspend fun getCompendioTotalCount(): Int = withContext(Dispatchers.IO) { dbHelper.getCompendioTotalCount() }
+
+    suspend fun syncCompendioWithTurso(): SyncResult = withContext(Dispatchers.IO) {
+        try {
+            val localMaxId = dbHelper.getMaxCompendioId()
+            var currentAfterId = localMaxId
+            var totalInserted = 0
+
+            while (true) {
+                val batch = tursoSyncService.fetchTeachingsAfterId(currentAfterId, limit = 500)
+                if (batch.isEmpty()) break
+                val insertedCount = dbHelper.insertOrUpdateCompendioItems(batch)
+                totalInserted += insertedCount
+                val maxBatchId = batch.maxOfOrNull { it.id } ?: break
+                currentAfterId = maxBatchId
+                if (batch.size < 500) break
+            }
+
+            val totalNow = dbHelper.getCompendioTotalCount()
+            if (totalInserted > 0) {
+                SyncResult.Success(newItemsCount = totalInserted, totalCount = totalNow)
+            } else {
+                SyncResult.AlreadyUpToDate(totalCount = totalNow)
+            }
+        } catch (e: Exception) {
+            SyncResult.Error("Error al sincronizar con Turso: ${e.localizedMessage ?: "Error desconocido"}")
+        }
+    }
+
+    suspend fun checkForAppUpdates(currentVersion: String): UpdateCheckResult {
+        return gitHubUpdateService.checkForUpdates(currentVersion)
+    }
 }

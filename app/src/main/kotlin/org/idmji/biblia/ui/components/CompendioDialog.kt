@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -285,6 +286,10 @@ fun GeneralCompendioDialog(
     isLoading: Boolean,
     thematicPage: Int,
     thematicHasNext: Boolean,
+    isSyncing: Boolean = false,
+    syncStatus: String? = null,
+    onSyncTurso: () -> Unit = {},
+    onDismissSyncStatus: () -> Unit = {},
     onThematicPageChange: (Int) -> Unit,
     onSelectBook: (Book?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
@@ -320,7 +325,10 @@ fun GeneralCompendioDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text("🕊️", fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
                             Column {
                                 Text(
@@ -336,8 +344,61 @@ fun GeneralCompendioDialog(
                                 )
                             }
                         }
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .padding(end = 6.dp),
+                                    strokeWidth = 2.dp,
+                                    color = IdmjiGold
+                                )
+                            } else {
+                                IconButton(
+                                    onClick = onSyncTurso,
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Refresh,
+                                        contentDescription = "Sincronizar con Turso Cloud",
+                                        tint = IdmjiGold,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+
+                // Banner de estado de sincronización si está disponible
+                if (syncStatus != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(IdmjiGold.copy(alpha = 0.18f))
+                            .clickable { onDismissSyncStatus() }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = syncStatus,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IdmjiPrimaryNavy,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Cerrar aviso",
+                                modifier = Modifier.size(16.dp),
+                                tint = IdmjiPrimaryNavy
+                            )
                         }
                     }
                 }

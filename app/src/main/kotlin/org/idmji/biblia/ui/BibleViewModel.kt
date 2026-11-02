@@ -26,6 +26,9 @@ import org.idmji.biblia.model.ReadingTheme
 import org.idmji.biblia.model.ResolvedReference
 import org.idmji.biblia.model.SearchResult
 import org.idmji.biblia.model.Verse
+import org.idmji.biblia.sync.AppUpdateInfo
+import org.idmji.biblia.sync.SyncResult
+import org.idmji.biblia.sync.UpdateCheckResult
 
 data class BibleUiState(
     val isLoading: Boolean = true,
@@ -79,7 +82,14 @@ data class BibleUiState(
     val compendioThematicPage: Int = 0,
     val compendioThematicHasNext: Boolean = false,
     val isCompendioDetailLoading: Boolean = false,
-    val isCompendioLoading: Boolean = false
+    val isCompendioLoading: Boolean = false,
+    // Sincronización y Actualizaciones
+    val isSyncingCompendio: Boolean = false,
+    val syncCompendioStatus: String? = null,
+    val isCheckingAppUpdate: Boolean = false,
+    val appUpdateInfo: AppUpdateInfo? = null,
+    val showUpdateDialog: Boolean = false,
+    val updateCheckMessage: String? = null
 )
 
 class BibleViewModel(application: Application) : AndroidViewModel(application) {
@@ -594,6 +604,124 @@ class BibleViewModel(application: Application) : AndroidViewModel(application) {
             finally {
                 if (currentCoroutineContext().isActive) {
                     _uiState.update { it.copy(isCompendioDetailLoading = false) }
+                }
+            }
+        }
+    }
+
+    fun dismissSyncStatus() {
+        _uiState.update { it.copy(syncCompendioStatus = null) }
+    }
+
+    fun dismissUpdateDialog() {
+        _uiState.update { it.copy(showUpdateDialog = false) }
+    }
+
+    fun dismissUpdateCheckMessage() {
+        _uiState.update { it.copy(updateCheckMessage = null) }
+    }
+
+    fun syncDoctrina() {
+        if (_uiState.value.isSyncingCompendio) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncingCompendio = true, syncCompendioStatus = "Conectando con Turso Cloud...") }
+            try {
+                when (val result = repository.syncCompendioWithTurso()) {
+                    is SyncResult.Success -> {
+                        _uiState.update {
+                            it.copy(
+                                isSyncingCompendio = false,
+                                syncCompendioStatus = "¡Doctrina actualizada! Se agregaron ${result.newItemsCount} nuevas enseñanzas (Total: ${result.totalCount})."
+                            )
+                        }
+                        if (_uiState.value.showGeneralCompendioDialog) {
+                            val books = repository.getCanonicalBooksWithCompendio()
+                            val total = repository.getThematicCompendioCount()
+                            val page = repository.getThematicCompendio()
+                            _uiState.update {
+                                it.copy(
+                                    compendioBooksWithCounts = books,
+                                    compendioThematicTeachings = page,
+                                    compendioThematicTotal = total,
+                                    compendioThematicHasNext = page.size < total
+                                )
+                            }
+                        }
+                    }
+                    is SyncResult.AlreadyUpToDate -> {
+                        _uiState.update {
+                            it.copy(
+                                isSyncingCompendio = false,
+                                syncCompendioStatus = "La Doctrina IDMJI ya está al día (${result.totalCount} enseñanzas disponibles)."
+                            )
+                        }
+                    }
+                    is SyncResult.Error -> {
+                        _uiState.update {
+                            it.copy(
+                                isSyncingCompendio = false,
+                                syncCompendioStatus = "Aviso de sincronización: ${result.message}"
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSyncingCompendio = false,
+                        syncCompendioStatus = "No se pudo sincronizar: ${e.localizedMessage ?: "Verifica tu conexión"}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun checkForAppUpdates(manual: Boolean = true) {
+        if (_uiState.value.isCheckingAppUpdate) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingAppUpdate = true, updateCheckMessage = if (manual) "Comprobando actualizaciones en GitHub..." else null) }
+            try {
+                val currentVersion = try {
+                    val packageInfo = getApplication<Application>().packageManager.getPackageInfo(getApplication<Application>().packageName, 0)
+                    packageInfo.versionName ?: "1.0"
+                } catch (_: Exception) {
+                    "1.0"
+                }
+
+                when (val result = repository.checkForAppUpdates(currentVersion)) {
+                    is UpdateCheckResult.Available -> {
+                        _uiState.update {
+                            it.copy(
+                                isCheckingAppUpdate = false,
+                                appUpdateInfo = result.info,
+                                showUpdateDialog = true,
+                                updateCheckMessage = null
+                            )
+                        }
+                    }
+                    is UpdateCheckResult.UpToDate -> {
+                        _uiState.update {
+                            it.copy(
+                                isCheckingAppUpdate = false,
+                                updateCheckMessage = if (manual) "Tienes la versión más reciente (v${result.currentVersion})." else null
+                            )
+                        }
+                    }
+                    is UpdateCheckResult.Error -> {
+                        _uiState.update {
+                            it.copy(
+                                isCheckingAppUpdate = false,
+                                updateCheckMessage = if (manual) "No se pudo comprobar: ${result.message}" else null
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isCheckingAppUpdate = false,
+                        updateCheckMessage = if (manual) "Error al conectar: ${e.localizedMessage ?: "Verifica tu conexión"}" else null
+                    )
                 }
             }
         }

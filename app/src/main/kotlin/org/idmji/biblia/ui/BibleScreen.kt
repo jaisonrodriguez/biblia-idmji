@@ -67,6 +67,7 @@ import org.idmji.biblia.ui.components.GeneralCompendioDialog
 import org.idmji.biblia.ui.components.NoteDialog
 import org.idmji.biblia.ui.components.ReadingSettingsSheet
 import org.idmji.biblia.ui.components.SearchDialog
+import org.idmji.biblia.ui.components.UpdateDialog
 import org.idmji.biblia.ui.components.VerseActionsBar
 import org.idmji.biblia.ui.components.VerseCompendioDialog
 import org.idmji.biblia.ui.theme.BibliaIDMJITheme
@@ -86,6 +87,21 @@ fun BibleScreen(viewModel: BibleViewModel) {
             snackbar.showSnackbar(it)
             viewModel.dismissError()
         }
+    }
+    LaunchedEffect(state.updateCheckMessage) {
+        state.updateCheckMessage?.let {
+            snackbar.showSnackbar(it)
+            viewModel.dismissUpdateCheckMessage()
+        }
+    }
+    LaunchedEffect(state.syncCompendioStatus) {
+        state.syncCompendioStatus?.let {
+            snackbar.showSnackbar(it)
+            viewModel.dismissSyncStatus()
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.checkForAppUpdates(manual = false)
     }
 
     BibliaIDMJITheme(readingTheme = state.settings.theme) {
@@ -324,6 +340,10 @@ fun BibleScreen(viewModel: BibleViewModel) {
                     onUpdateTheme = { viewModel.updateTheme(it) },
                     onToggleSerif = { viewModel.toggleFontFamily(it) },
                     onToggleVerseByVerse = { viewModel.toggleViewMode(it) },
+                    isSyncingTurso = state.isSyncingCompendio,
+                    isCheckingUpdate = state.isCheckingAppUpdate,
+                    onSyncTurso = { viewModel.syncDoctrina() },
+                    onCheckUpdate = { viewModel.checkForAppUpdates(manual = true) },
                     onDismiss = { viewModel.setShowSettingsSheet(false) }
                 )
             }
@@ -406,6 +426,10 @@ fun BibleScreen(viewModel: BibleViewModel) {
                     isLoading = state.isCompendioLoading,
                     thematicPage = state.compendioThematicPage,
                     thematicHasNext = state.compendioThematicHasNext,
+                    isSyncing = state.isSyncingCompendio,
+                    syncStatus = state.syncCompendioStatus,
+                    onSyncTurso = { viewModel.syncDoctrina() },
+                    onDismissSyncStatus = { viewModel.dismissSyncStatus() },
                     onThematicPageChange = viewModel::loadThematicPage,
                     onSelectBook = { viewModel.selectCompendioBook(it) },
                     onSearchQueryChange = { viewModel.searchCompendio(it) },
@@ -414,6 +438,13 @@ fun BibleScreen(viewModel: BibleViewModel) {
                         viewModel.navigateToCompendioPassage(bookId, chapter, verse)
                     },
                     onDismiss = { viewModel.closeGeneralCompendio() }
+                )
+            }
+
+            if (state.showUpdateDialog && state.appUpdateInfo != null) {
+                UpdateDialog(
+                    updateInfo = state.appUpdateInfo!!,
+                    onDismiss = { viewModel.dismissUpdateDialog() }
                 )
             }
 

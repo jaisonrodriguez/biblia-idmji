@@ -15,8 +15,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
@@ -51,6 +57,10 @@ fun ReadingSettingsSheet(
     onUpdateTheme: (ReadingTheme) -> Unit,
     onToggleSerif: (Boolean) -> Unit,
     onToggleVerseByVerse: (Boolean) -> Unit,
+    isSyncingTurso: Boolean = false,
+    isCheckingUpdate: Boolean = false,
+    onSyncTurso: () -> Unit = {},
+    onCheckUpdate: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -197,6 +207,115 @@ fun ReadingSettingsSheet(
                     label = { Text("Párrafo continuo") },
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "Actualizaciones y Sincronización",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = IdmjiPrimaryNavy
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 1. Sincronizar Doctrina IDMJI con Turso
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Doctrina IDMJI (Videos)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "Descarga nuevas enseñanzas oficiales desde Turso Cloud",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    FilledTonalButton(
+                        onClick = onSyncTurso,
+                        enabled = !isSyncingTurso,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = IdmjiPrimaryNavy,
+                            contentColor = IdmjiGold
+                        )
+                    ) {
+                        if (isSyncingTurso) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = IdmjiGold
+                            )
+                        } else {
+                            Text("Sincronizar", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 2. Buscar Actualizaciones de la App (GitHub)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Versión de la App",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "Buscar nueva versión en GitHub Releases",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    FilledTonalButton(
+                        onClick = onCheckUpdate,
+                        enabled = !isCheckingUpdate,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = IdmjiPrimaryNavy,
+                            contentColor = IdmjiGold
+                        )
+                    ) {
+                        if (isCheckingUpdate) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = IdmjiGold
+                            )
+                        } else {
+                            Text("Buscar", fontSize = 12.sp)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(28.dp))
