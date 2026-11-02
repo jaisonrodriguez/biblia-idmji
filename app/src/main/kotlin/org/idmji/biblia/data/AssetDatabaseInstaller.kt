@@ -93,7 +93,7 @@ internal object AssetDatabaseInstaller {
     private fun open(file: File) = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
 
     private fun hasContentTables(db: SQLiteDatabase): Boolean = db.rawQuery(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('referencias_cruzadas','compendio_idmji')", null
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('referencias_rvr1960','compendio_idmji')", null
     ).use { it.moveToFirst() && it.getInt(0) == 2 }
 
     private fun checkDatabase(db: SQLiteDatabase, version: Int) {

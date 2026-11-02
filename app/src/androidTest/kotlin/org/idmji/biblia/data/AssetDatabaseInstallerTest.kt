@@ -29,7 +29,7 @@ class AssetDatabaseInstallerTest {
             it.execSQL("CREATE TABLE marcadores(id INTEGER PRIMARY KEY AUTOINCREMENT,libro_id INTEGER,capitulo INTEGER,versiculo INTEGER,color TEXT,nota TEXT,fecha_creacion TEXT)")
             it.execSQL("CREATE TABLE historial(id INTEGER PRIMARY KEY,libro_id INTEGER,capitulo INTEGER,versiculo INTEGER,fecha_actualizacion TEXT)")
             it.execSQL("CREATE TABLE compendio_idmji(id INTEGER PRIMARY KEY)")
-            it.execSQL("CREATE TABLE referencias_cruzadas(id INTEGER PRIMARY KEY)")
+            it.execSQL("CREATE TABLE referencias_rvr1960(id INTEGER PRIMARY KEY)")
             it.version = version
         }
     }

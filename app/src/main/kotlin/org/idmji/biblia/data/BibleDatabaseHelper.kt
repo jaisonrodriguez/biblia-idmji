@@ -420,43 +420,45 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
 
     suspend fun getTskReferencesForVerse(bookId: Int, chapter: Int, verse: Int, limit: Int = 15): List<CrossReference> = withContext(Dispatchers.IO) {
         val list = mutableListOf<CrossReference>()
-        val db = readableDatabase
-        val cursor = db.rawQuery(
-            """
-            SELECT rc.id, rc.origen_libro_id, rc.origen_capitulo, rc.origen_versiculo,
-                   rc.destino_libro_id, l.nombre, rc.destino_capitulo,
-                   rc.destino_versiculo_inicio, rc.destino_versiculo_fin, rc.votos
-            FROM referencias_cruzadas rc
-            JOIN libros l ON l.id = rc.destino_libro_id
-            WHERE rc.origen_libro_id = ? AND rc.origen_capitulo = ? AND rc.origen_versiculo = ?
-            ORDER BY rc.votos DESC
-            LIMIT ?
-            """.trimIndent(),
-            arrayOf(bookId.toString(), chapter.toString(), verse.toString(), limit.toString())
-        )
-        cursor.use {
-            while (it.moveToNext()) {
-                val destBookId = it.getInt(4)
-                val destChapter = it.getInt(6)
-                val destStart = it.getInt(7)
-                val destEnd = it.getInt(8)
-                list.add(
-                    CrossReference(
-                        id = it.getLong(0),
-                        originBookId = it.getInt(1),
-                        originChapter = it.getInt(2),
-                        originVerse = it.getInt(3),
-                        destBookId = destBookId,
-                        destBookName = it.getString(5),
-                        destChapter = destChapter,
-                        destVerseStart = destStart,
-                        destVerseEnd = destEnd,
-                        votes = it.getInt(9),
-                        text = resolvePassageText(db, destBookId, destChapter, destStart, destEnd)
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery(
+                """
+                SELECT rc.id, rc.origen_libro_id, rc.origen_capitulo, rc.origen_versiculo,
+                       rc.destino_libro_id, l.nombre, rc.destino_capitulo,
+                       rc.destino_versiculo_inicio, rc.destino_versiculo_fin, rc.votos
+                FROM referencias_cruzadas rc
+                JOIN libros l ON l.id = rc.destino_libro_id
+                WHERE rc.origen_libro_id = ? AND rc.origen_capitulo = ? AND rc.origen_versiculo = ?
+                ORDER BY rc.votos DESC
+                LIMIT ?
+                """.trimIndent(),
+                arrayOf(bookId.toString(), chapter.toString(), verse.toString(), limit.toString())
+            )
+            cursor.use {
+                while (it.moveToNext()) {
+                    val destBookId = it.getInt(4)
+                    val destChapter = it.getInt(6)
+                    val destStart = it.getInt(7)
+                    val destEnd = it.getInt(8)
+                    list.add(
+                        CrossReference(
+                            id = it.getLong(0),
+                            originBookId = it.getInt(1),
+                            originChapter = it.getInt(2),
+                            originVerse = it.getInt(3),
+                            destBookId = destBookId,
+                            destBookName = it.getString(5),
+                            destChapter = destChapter,
+                            destVerseStart = destStart,
+                            destVerseEnd = destEnd,
+                            votes = it.getInt(9),
+                            text = resolvePassageText(db, destBookId, destChapter, destStart, destEnd)
+                        )
                     )
-                )
+                }
             }
-        }
+        } catch (_: Exception) {}
         list
     }
 
