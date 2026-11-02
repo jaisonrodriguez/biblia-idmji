@@ -39,6 +39,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -148,8 +149,15 @@ fun BibleScreen(viewModel: BibleViewModel) {
                         }
                     },
                     actions = {
-                        IconButton(onClick = { viewModel.openGeneralCompendio() }) {
-                            Text("🕊️", fontSize = 18.sp)
+                        TextButton(
+                            onClick = { viewModel.openGeneralCompendio() },
+                            colors = ButtonDefaults.textButtonColors(contentColor = IdmjiGold)
+                        ) {
+                            Text(
+                                text = "Doctrina IDMJI",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                         IconButton(onClick = { viewModel.openDictionary() }) {
                             Icon(
@@ -531,15 +539,17 @@ fun VerseItemView(
                 Spacer(modifier = Modifier.width(4.dp))
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
+                        .clip(RoundedCornerShape(6.dp))
                         .background(IdmjiPrimaryNavy.copy(alpha = 0.12f))
-                        .clickable(onClick = onOpenCompendio),
+                        .clickable(onClick = onOpenCompendio)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "🕊️",
-                        fontSize = 11.sp
+                        text = "Doctrina",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IdmjiPrimaryNavy
                     )
                 }
             }

@@ -151,11 +151,6 @@ fun VerseCompendioDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "🕊️",
-                                fontSize = 20.sp,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
                             Column {
                                 Text(
                                     text = "Estudios Doctrinales IDMJI",
@@ -221,7 +216,6 @@ fun VerseCompendioDialog(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Text("🕊️", fontSize = 48.sp)
                             Text(
                                 text = "No hay un estudio específico registrado para este versículo directo.",
                                 fontSize = 14.sp,
@@ -329,7 +323,6 @@ fun GeneralCompendioDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("🕊️", fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
                             Column {
                                 Text(
                                     text = "Doctrina IDMJI",
@@ -492,7 +485,7 @@ fun GeneralCompendioDialog(
                             },
                             text = {
                                 Text(
-                                    "📖 Libros Bíblicos",
+                                    "Libros Bíblicos",
                                     fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
                                     color = if (selectedTab == 0) IdmjiPrimaryNavy else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp
@@ -507,7 +500,7 @@ fun GeneralCompendioDialog(
                             },
                             text = {
                                 Text(
-                                    "🕊️ Temas Doctrinales",
+                                    "Temas Doctrinales",
                                     fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
                                     color = if (selectedTab == 1) IdmjiPrimaryNavy else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp
@@ -720,14 +713,14 @@ fun CompendioItemCard(
             ) {
                 if (item.cita.isNotBlank()) {
                     Text(
-                        text = "📜 ${item.cita}",
+                        text = item.cita,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         color = IdmjiPrimaryNavy
                     )
                 } else {
                     Text(
-                        text = "🕊️ Enseñanza Doctrinal",
+                        text = "Enseñanza Doctrinal",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = IdmjiPrimaryNavy
@@ -877,7 +870,6 @@ fun CompendioDetailDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("🕊️", fontSize = 20.sp, modifier = Modifier.padding(end = 8.dp))
                             Column {
                                 if (item.cita.isNotBlank()) {
                                     Text(

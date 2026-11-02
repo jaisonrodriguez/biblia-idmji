@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Share
@@ -125,7 +126,9 @@ fun VerseActionsBar(
                     Toast.makeText(context, "Copiado al portapapeles", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }) {
-                    Text("📋 Copiar", fontSize = 12.sp, color = IdmjiPrimaryNavy)
+                    Icon(Icons.Default.ContentCopy, contentDescription = "Copiar", modifier = Modifier.size(15.dp), tint = IdmjiPrimaryNavy)
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("Copiar", fontSize = 12.sp, color = IdmjiPrimaryNavy)
                 }
 
                 TextButton(onClick = {
@@ -169,9 +172,7 @@ fun VerseActionsBar(
                 }
 
                 TextButton(onClick = onOpenCompendio) {
-                    Text("🕊️", fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text("Doctrina IDMJI", fontSize = 12.sp, color = IdmjiPrimaryNavy, fontWeight = FontWeight.SemiBold)
+                    Text("Doctrina IDMJI", fontSize = 12.sp, color = IdmjiPrimaryNavy, fontWeight = FontWeight.Bold)
                 }
             }
         }
