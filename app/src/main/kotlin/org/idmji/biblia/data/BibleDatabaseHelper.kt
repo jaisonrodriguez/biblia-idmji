@@ -23,7 +23,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
 
     companion object {
         private const val DB_NAME = "biblia_rvr1960.db"
-        private const val DB_VERSION = 2
+        private const val DB_VERSION = 3
 
         // Orden canónico según Manual para Leer la Biblia de la IDMJI (Columna derecha)
         val NT_IDMJI_ORDER = listOf(
@@ -566,7 +566,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
                    c.cita, c.titulo, c.video_url, c.video_id, c.seccion, '' as transcripcion
             FROM compendio_idmji c
             LEFT JOIN libros l ON c.libro_id = l.id
-            WHERE c.tipo = 'CANONICO' AND c.libro_id = ? AND c.capitulo = ? AND ? BETWEEN c.versiculo_inicio AND c.versiculo_fin
+            WHERE c.tipo = 'CANONICO' AND c.libro_id = ? AND c.capitulo = ? AND c.versiculo_inicio > 0 AND ? BETWEEN c.versiculo_inicio AND c.versiculo_fin
             ORDER BY c.id
             """.trimIndent(),
             arrayOf(bookId.toString(), chapter.toString(), verse.toString())
@@ -583,7 +583,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
     suspend fun getCompendioVersesForChapter(bookId: Int, chapter: Int): Set<Int> = withContext(Dispatchers.IO) {
         val db = readableDatabase
         val cursor = db.rawQuery(
-            "SELECT versiculo_inicio, versiculo_fin FROM compendio_idmji WHERE tipo = 'CANONICO' AND libro_id = ? AND capitulo = ?",
+            "SELECT versiculo_inicio, versiculo_fin FROM compendio_idmji WHERE tipo = 'CANONICO' AND libro_id = ? AND capitulo = ? AND versiculo_inicio > 0",
             arrayOf(bookId.toString(), chapter.toString())
         )
         val verseSet = mutableSetOf<Int>()
@@ -591,16 +591,7 @@ class BibleDatabaseHelper(private val context: Context) : SQLiteOpenHelper(conte
             while (it.moveToNext()) {
                 val start = it.getInt(0)
                 val end = it.getInt(1)
-                if (end >= 999) {
-                    val vCursor = db.rawQuery(
-                        "SELECT MAX(versiculo) FROM versiculos WHERE libro_id = ? AND capitulo = ?",
-                        arrayOf(bookId.toString(), chapter.toString())
-                    )
-                    val maxV = vCursor.use { vc -> if (vc.moveToFirst()) vc.getInt(0) else 50 }
-                    for (v in 1..maxV) {
-                        verseSet.add(v)
-                    }
-                } else {
+                if (start > 0 && end >= start && end < 999) {
                     for (v in start..end) {
                         verseSet.add(v)
                     }
